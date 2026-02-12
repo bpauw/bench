@@ -1,26 +1,86 @@
 # bench
 
-A CLI tool for managing development workbenches and worktrees.
+A CLI orchestration tool for agentic coding workflows.
 
-## Overview
+Bench manages git worktrees organized into **workbenches** -- isolated development environments where multiple repository worktrees are grouped together for coordinated work on coding tasks. It integrates with an external AI coding agent ([opencode](https://opencode.ai)) to provide interactive spec-writing sessions, automated multi-phase task implementation, and free-form discussion sessions.
 
-Bench is a CLI orchestration system for agentic coding workflows. It manages git worktrees organized into "workbenches" — isolated development environments where multiple repository worktrees are grouped together for coordinated work on coding tasks.
+---
 
-### Key Concepts
+## Table of Contents
 
-- **Source** — A named collection of repository-to-branch mappings stored in `base-config.yaml`. Sources define which repositories and branches are used when creating workbenches.
-- **Workbench** — A directory containing a set of git worktrees created from a source, along with orchestration metadata (an `AGENTS.md` file and a `bench` folder)
+- [Key Concepts](#key-concepts)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Workflow Overview](#workflow-overview)
+- [Commands](#commands)
+  - [bench init](#bench-init)
+  - [bench status](#bench-status)
+  - [bench source](#bench-source)
+    - [source add](#bench-source-add)
+    - [source list](#bench-source-list)
+    - [source update](#bench-source-update)
+    - [source remove](#bench-source-remove)
+  - [bench workbench](#bench-workbench)
+    - [workbench create](#bench-workbench-create)
+    - [workbench update](#bench-workbench-update)
+    - [workbench retire](#bench-workbench-retire)
+    - [workbench activate](#bench-workbench-activate)
+  - [bench task](#bench-task)
+    - [task create](#bench-task-create)
+    - [task refine](#bench-task-refine)
+    - [task implement](#bench-task-implement)
+    - [task complete](#bench-task-complete)
+    - [task list](#bench-task-list)
+  - [bench discuss](#bench-discuss)
+    - [discuss start](#bench-discuss-start)
+    - [discuss list](#bench-discuss-list)
+- [Configuration](#configuration)
+  - [Project Configuration (base-config.yaml)](#project-configuration)
+  - [Workbench Configuration (workbench-config.yaml)](#workbench-configuration)
+  - [AI Model Configuration](#ai-model-configuration)
+  - [Implementation Flow](#implementation-flow)
+  - [Prompt Templates](#prompt-templates)
+  - [AGENTS.md](#agentsmd)
+- [Operating Modes](#operating-modes)
+- [Architecture](#architecture)
+  - [Layered Design](#layered-design)
+  - [Project Structure](#project-structure)
+  - [Dependencies](#dependencies)
+- [Development](#development)
+- [License](#license)
+
+---
+
+## Key Concepts
+
+| Concept | Description |
+|---|---|
+| **Source** | A named collection of repository-to-branch mappings. Sources define which repos and branches are used when creating workbenches. |
+| **Workbench** | An isolated development environment containing git worktrees for each repo in a source, plus orchestration metadata (`AGENTS.md`, tasks, prompts, history, discussions). |
+| **Task** | A unit of work tracked within a workbench. Each task has a spec, implementation plan, file list, and notes. Tasks can be created, refined, implemented (via AI), and completed. |
+| **Discussion** | A free-form AI conversation session. When finished, the agent writes a dated summary to `bench/discussions/`. |
+| **Implementation Flow** | A configurable multi-phase pipeline that automates task implementation using headless AI agent sessions. Each phase has a prompt template, required inputs, and expected outputs. |
+
+---
 
 ## Requirements
 
-- Python ~=3.14.0
-- Git >= 2.11 (for porcelain v2 status format)
-- [uv](https://docs.astral.sh/uv/) for package management
+- **Python** ~=3.14.0
+- **Git** >= 2.11 (for `--porcelain=v2` status format and worktree support)
+- **[uv](https://docs.astral.sh/uv/)** for Python package management
+- **[opencode](https://opencode.ai)** AI coding agent CLI (for `task create --interview`, `task refine`, `task implement`, and `discuss start`)
+
+---
 
 ## Installation
 
 ```bash
-# Clone the repository and install
+# Clone the repository
+git clone <repo-url>
+cd bench
+
+# Install dependencies and the bench CLI tool
 uv sync --all-groups
 uv tool install .
 ```
@@ -34,919 +94,443 @@ make install  # uv tool install --reinstall .
 
 After installation, the `bench` command is available on your PATH.
 
-## Usage
+To enable **tab completion** for shell commands, source names, workbench names, and task names:
 
 ```bash
-bench --help
-bench init
-bench status
-bench source add my-source --add-repo service-repo:main
-bench source list
-bench source update my-source --add-repo client-repo:develop
-bench source update my-source --remove-repo service-repo:main --add-repo service-repo:feature/new
-bench source remove my-source
-bench source remove my-source --yes
-bench workbench create my-source my-workbench
-bench workbench create my-source my-workbench --workbench-git-branch custom-branch
-bench workbench update my-workbench --add-repo new-repo:main
-bench workbench update my-workbench --remove-repo old-repo
-bench workbench update --add-repo new-repo:main   # from workbench directory
-bench workbench retire my-workbench                # retire a workbench (with confirmation)
-bench workbench retire my-workbench --yes          # retire without confirmation
-bench workbench activate my-workbench              # activate a retired workbench
-bench task create add-auth                         # from workbench directory
-bench task create add-auth --interview             # create task + interactive spec session
-bench task refine add-auth                         # from workbench directory — refine existing task spec
-bench task implement add-auth                      # from workbench directory — run all configured implementation phases
-bench task complete add-auth                       # from workbench directory — mark task as complete
-bench task list                                    # from workbench directory — list open tasks
-bench task list --all                              # list all tasks (including completed)
-bench task list --completed                        # list only completed tasks
+bench --install-completion
 ```
 
-### Commands
+---
 
-| Command            | Description                                                      |
-|--------------------|------------------------------------------------------------------|
-| `init`             | Initialize a new bench project in the current directory          |
-| `status`           | Display the current bench mode, project root, workbench info, and configured AI model |
-| `source add`       | Add a named source to the bench project configuration            |
-| `source list`      | List all sources and their repository-branch mappings            |
-| `source update`    | Update an existing source by adding or removing repository mappings |
-| `source remove`    | Remove a named source from the bench project configuration       |
-| `workbench create` | Create a new workbench from a source definition                  |
-| `workbench update` | Update an existing workbench by adding or removing repositories  |
-| `workbench retire` | Retire a workbench by removing its workspace and pruning worktrees |
-| `workbench activate` | Activate a retired workbench by recreating its workspace and worktrees |
-| `task create`      | Create a new task in the current workbench with scaffold files   |
-| `task refine`      | Refine an existing task's specification via an interactive AI session |
-| `task implement`   | Implement a task through sequential AI-assisted phases from the configured implementation flow |
-| `task complete`    | Mark a task as complete by setting its completed date in task.yaml             |
-| `task list`        | List tasks in the current workbench with progress indicators                   |
+## Quick Start
+
+```bash
+# 1. Navigate to your project root (containing your git repos)
+cd ~/projects/my-project
+
+# 2. Initialize bench
+bench init
+
+# 3. Add a source defining which repos and branches to work with
+bench source add my-source \
+  --add-repo service-repo:main \
+  --add-repo client-repo:develop
+
+# 4. Create a workbench from that source
+bench workbench create my-source my-workbench
+
+# 5. Navigate into the workbench
+cd workbench/my-workbench
+
+# 6. Create a task (optionally with an interactive AI spec session)
+bench task create add-auth --interview
+
+# 7. Refine the spec if needed
+bench task refine add-auth
+
+# 8. Run the automated implementation pipeline
+bench task implement add-auth
+
+# 9. Mark the task as complete
+bench task complete add-auth
+```
+
+---
+
+## Workflow Overview
+
+Bench follows a structured development workflow:
+
+```
+                    ┌─────────────┐
+                    │  bench init │  Initialize project
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │ source add  │  Define repo-to-branch mappings
+                    └──────┬──────┘
+                           │
+                ┌──────────▼──────────┐
+                │  workbench create   │  Create isolated dev environment
+                └──────────┬──────────┘
+                           │
+             ┌─────────────▼─────────────┐
+             │       task create         │  Create task + optional AI interview
+             │    (--interview)          │
+             └─────────────┬─────────────┘
+                           │
+                   ┌───────▼───────┐
+                   │  task refine  │  Iterative AI spec refinement
+                   └───────┬───────┘
+                           │
+               ┌───────────▼───────────┐
+               │   task implement      │  Multi-phase AI implementation
+               │  (plan → build → doc) │
+               └───────────┬───────────┘
+                           │
+                  ┌────────▼────────┐
+                  │  task complete  │  Mark done
+                  └─────────────────┘
+```
+
+At any point during development, you can also start free-form **discussion** sessions with the AI agent using `bench discuss start`.
+
+---
+
+## Commands
 
 Running `bench` with no subcommand defaults to `bench status`.
 
-### `bench init`
+| Command | Mode | Description |
+|---|---|---|
+| `bench init` | UNINITIALIZED | Initialize a new bench project |
+| `bench status` | Any | Display current mode, project root, workbench info, AI model |
+| `bench source add` | ROOT | Add a named source with repo-to-branch mappings |
+| `bench source list` | ROOT | List all sources |
+| `bench source update` | ROOT | Add/remove repos from an existing source |
+| `bench source remove` | ROOT | Remove a source (with confirmation) |
+| `bench workbench create` | ROOT | Create a workbench from a source |
+| `bench workbench update` | ROOT / WORKBENCH | Add/remove repos from a workbench |
+| `bench workbench retire` | ROOT | Retire a workbench (preserves metadata) |
+| `bench workbench activate` | ROOT | Reactivate a retired workbench |
+| `bench task create` | WORKBENCH | Create a task with scaffold files |
+| `bench task refine` | WORKBENCH | Interactive AI spec refinement |
+| `bench task implement` | WORKBENCH | Multi-phase automated AI implementation |
+| `bench task complete` | WORKBENCH | Mark a task as complete |
+| `bench task list` | WORKBENCH | List tasks with progress indicators |
+| `bench discuss start` | WORKBENCH | Start a free-form AI discussion |
+| `bench discuss list` | WORKBENCH | List past discussions |
 
-Initializes a new bench project in the current directory by creating the `.bench/` directory structure with all necessary scaffolding files.
+### bench init
+
+Initializes a new bench project in the current directory by creating the `.bench/` directory structure.
 
 ```bash
-# Initialize a new bench project
 bench init
 ```
 
-**No arguments or options.**
+No arguments or options.
 
 **What it creates:**
 
-| Path                        | Description                                  |
-|-----------------------------|----------------------------------------------|
-| `.bench/`                   | Bench configuration directory                |
-| `.bench/base-config.yaml`  | Project config with `sources: []`, default `models` section, and default `implementation-flow-template` |
-| `.bench/files/`             | Shared files directory (with `.gitkeep`)     |
-| `.bench/prompts/`           | Shared prompts directory (with `.gitkeep` and seed prompt files) |
-| `.bench/prompts/task-create-spec.md` | Seed prompt: interactive spec creation workflow |
-| `.bench/prompts/task-refine-spec.md` | Seed prompt: spec refinement workflow |
-| `.bench/prompts/task-write-impl-docs.md` | Seed prompt: implementation planning workflow |
-| `.bench/prompts/task-do-impl.md` | Seed prompt: implementation execution workflow |
-| `.bench/prompts/task-update-change-docs.md` | Seed prompt: change documentation workflow |
-| `.bench/scripts/`           | Shared scripts directory (with `.gitkeep`)   |
-| `.bench/workbench/`         | Workbench metadata directory (with `.gitkeep`) |
-| `.bench/AGENTS.md`          | Agent instructions template                  |
-
-**Output on success:**
-
 ```
-Initialized bench project
-
-  created .bench/
-  created .bench/base-config.yaml
-  created .bench/files/
-  created .bench/files/.gitkeep
-  created .bench/prompts/
-  created .bench/prompts/.gitkeep
-  created .bench/scripts/
-  created .bench/scripts/.gitkeep
-  created .bench/workbench/
-  created .bench/workbench/.gitkeep
-  created .bench/prompts/task-create-spec.md
-  created .bench/prompts/task-refine-spec.md
-  created .bench/prompts/task-write-impl-docs.md
-  created .bench/prompts/task-do-impl.md
-  created .bench/prompts/task-update-change-docs.md
-  created .bench/AGENTS.md
+.bench/
+  base-config.yaml           # Project config (sources, models, implementation flow template)
+  AGENTS.md                  # Project instructions template for the AI agent
+  files/                     # Shared files directory
+  prompts/                   # Shared prompt templates
+    task-create-spec.md      # Interactive spec creation prompt
+    task-refine-spec.md      # Spec refinement prompt
+    task-write-impl-docs.md  # Implementation planning prompt
+    task-do-impl.md          # Implementation execution prompt
+    task-update-change-docs.md  # Change documentation prompt
+    discuss.md               # Free-form discussion prompt
+  scripts/                   # Shared scripts directory
+  workbench/                 # Workbench metadata directory
 ```
 
 **Validation errors:**
 
-| Condition              | Error message                                                                                       |
-|------------------------|-----------------------------------------------------------------------------------------------------|
-| Already a project root | `This directory is already a bench project root.`                                                   |
-| Inside a workbench     | `Cannot initialize inside a workbench directory.`                                                   |
-| Inside a project       | `Cannot initialize inside an existing bench project. Project root is at: /path`                     |
+| Condition | Error |
+|---|---|
+| Already a project root | `This directory is already a bench project root.` |
+| Inside a workbench | `Cannot initialize inside a workbench directory.` |
+| Inside a project | `Cannot initialize inside an existing bench project. Project root is at: /path` |
 
-### `bench source add`
+---
 
-Creates a named source entry in `base-config.yaml`. Sources define repository-to-branch mappings used when creating workbenches.
+### bench status
+
+Displays the current bench operating mode, project root path, workbench info (if applicable), and the configured AI model.
 
 ```bash
-# Add a source with no repos
-bench source add my-source
-
-# Add a source with one repo
-bench source add my-source --add-repo service-repo:main
-
-# Add a source with multiple repos
-bench source add my-source --add-repo service-repo:main --add-repo client-repo:develop
+bench status
+bench              # same (default command)
 ```
 
-**Arguments:**
+---
 
-| Argument | Type       | Required | Description                           |
-|----------|------------|----------|---------------------------------------|
-| `name`   | positional | yes      | Name of the source to create          |
+### bench source
 
-**Options:**
+Manage named source definitions. Sources are collections of repository-to-branch mappings stored in `base-config.yaml`.
 
-| Option       | Type   | Required | Description                                                                 |
-|--------------|--------|----------|-----------------------------------------------------------------------------|
-| `--add-repo` | string | no       | Repository mapping in `directory-name:branch-name` format. Can be repeated. |
+#### bench source add
 
-**Behavior:**
+```bash
+# Add a source with repos
+bench source add my-source --add-repo service-repo:main --add-repo client-repo:develop
 
-- Only runs in ROOT mode (from the project root directory containing `.bench/base-config.yaml`)
-- Source names must be unique — duplicates are rejected
-- All `--add-repo` values are validated before any changes are written (all-or-nothing)
-- Each `--add-repo` value must reference an existing directory in the project root that is a git repository, with a valid local branch name
+# Add an empty source (repos can be added later with source update)
+bench source add my-source
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | yes | Source name (must be unique) |
+| `--add-repo` | option | no | Repo mapping as `directory:branch`. Repeatable. |
+
+Each `--add-repo` value must reference an existing directory in the project root that is a git repository with a valid local branch.
 
 **Validation errors:**
 
-| Condition                  | Error message                                                                     |
-|----------------------------|-----------------------------------------------------------------------------------|
-| Uninitialized folder       | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
-| Not in project root        | `The 'source add' command can only be run from the project root directory.`        |
-| Invalid `--add-repo` format | `Invalid --add-repo format "value". Expected format: directory-name:branch-name`  |
-| Directory doesn't exist    | `Repository directory "name" does not exist in project root: /path`               |
-| Not a git repository       | `Directory "name" is not a git repository`                                        |
-| Branch doesn't exist       | `Branch "name" does not exist in repository "repo". Available local branches: ...`|
-| Duplicate source name      | `Source "name" already exists. Source names must be unique.`                       |
+| Condition | Error |
+|---|---|
+| Invalid format | `Invalid --add-repo format "value". Expected format: directory-name:branch-name` |
+| Directory missing | `Repository directory "name" does not exist in project root: /path` |
+| Not a git repo | `Directory "name" is not a git repository` |
+| Branch missing | `Branch "name" does not exist in repository "repo". Available local branches: ...` |
+| Duplicate name | `Source "name" already exists. Source names must be unique.` |
 
-**Config example:**
-
-After running `bench source add my-source --add-repo service-repo:main --add-repo client-repo:develop`:
-
-```yaml
-sources:
-  - name: my-source
-    repos:
-      - dir: service-repo
-        source-branch: main
-      - dir: client-repo
-        source-branch: develop
-models:
-  task: anthropic/claude-opus-4-6
-implementation-flow-template:
-  - name: Writing implementation docs
-    prompt: task-write-impl-docs.md
-    required-files:
-      - spec.md
-    output-files:
-      - impl.md
-  - name: Implementing
-    prompt: task-do-impl.md
-    required-files:
-      - spec.md
-      - impl.md
-    output-files: []
-  - name: Updating change docs
-    prompt: task-update-change-docs.md
-    required-files:
-      - spec.md
-      - impl.md
-    output-files: []
-```
-
-### `bench source list`
-
-Lists all sources defined in `base-config.yaml`, showing each source's name and its repository-to-branch mappings.
+#### bench source list
 
 ```bash
 bench source list
 ```
 
-**Output format:**
+Lists all sources with their repo-to-branch mappings. Source names are displayed in bold cyan, branches in green.
 
-```
-Sources:
-  * my-source
-      - service-repo -> main
-      - client-repo -> develop
-  * another-source
-      - api-repo -> feature/auth
-```
-
-- Source names displayed in **bold cyan**
-- Branch names in **green**
-- Structural characters (`*`, `-`, `->`, heading) are **dimmed**
-
-**Empty state:** If no sources are defined, prints: `No sources defined. Use 'bench source add' to create one.`
-
-**Validation errors:**
-
-| Condition            | Error message                                                                     |
-|----------------------|-----------------------------------------------------------------------------------|
-| Uninitialized folder | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
-| Not in project root  | `The 'source list' command can only be run from the project root directory.`       |
-
-### `bench source update`
-
-Updates an existing source by removing and/or adding repository mappings. Removals are applied before additions, which allows replacing a repo's branch in a single invocation.
+#### bench source update
 
 ```bash
-# Add a repo to an existing source
+# Add a repo
 bench source update my-source --add-repo client-repo:develop
 
-# Remove a repo from an existing source
+# Remove a repo (requires exact dir:branch match)
 bench source update my-source --remove-repo service-repo:main
 
-# Replace a repo's branch (remove then add in one command)
+# Replace a repo's branch in one command (removals happen before additions)
 bench source update my-source --remove-repo service-repo:main --add-repo service-repo:feature/new
-
-# Multiple operations at once
-bench source update my-source --remove-repo old-repo:main --add-repo new-repo:main --add-repo another-repo:develop
 ```
 
-**Arguments:**
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | yes | Source name |
+| `--add-repo` | option | no | Repo mapping to add (`directory:branch`). Repeatable. |
+| `--remove-repo` | option | no | Repo mapping to remove (`directory:branch`, exact match). Repeatable. |
 
-| Argument | Type       | Required | Description                           |
-|----------|------------|----------|---------------------------------------|
-| `name`   | positional | yes      | Name of the source to update          |
+At least one `--add-repo` or `--remove-repo` is required. Removals are applied before additions (deterministic order). All changes are validated before anything is written (all-or-nothing).
 
-**Options:**
-
-| Option         | Type   | Required | Description                                                                                        |
-|----------------|--------|----------|----------------------------------------------------------------------------------------------------|
-| `--add-repo`   | string | no       | Repository mapping to add in `directory-name:branch-name` format. Can be repeated.                 |
-| `--remove-repo`| string | no       | Repository mapping to remove in `directory-name:branch-name` format. Must be an exact match. Can be repeated. |
-
-At least one `--add-repo` or `--remove-repo` option is required.
-
-**Behavior:**
-
-- Only runs in ROOT mode (from the project root directory containing `.bench/base-config.yaml`)
-- Removals are applied before additions (operation order is deterministic)
-- All-or-nothing validation: all removals and additions are validated before any changes are written
-- `--remove-repo` requires an exact `dir:branch` match against the source's current repos
-- `--add-repo` checks for duplicate directory names (after removals are applied) — a source cannot have two entries for the same directory
-- `--add-repo` values undergo full validation: directory must exist in the project root, must be a git repository, and the branch must exist locally
-- Duplicates within the `--add-repo` list itself are also detected
-
-**Validation errors:**
-
-| Condition                    | Error message                                                                              |
-|------------------------------|--------------------------------------------------------------------------------------------|
-| Uninitialized folder         | `This folder is uninitialized. Run 'bench init' to create a bench project first.`          |
-| Not in project root          | `The 'source update' command can only be run from the project root directory.`              |
-| No options provided          | `At least one --add-repo or --remove-repo option is required.`                              |
-| Source not found             | `Source "name" not found. Available sources: ...`                                           |
-| Remove target not found      | `Repo "dir:branch" not found in source "name". Available repos: ...`                        |
-| Duplicate directory on add   | `Repository directory "name" already exists in source "name". Remove it first or use a different directory.` |
-| Invalid `--add-repo` format  | `Invalid --add-repo format "value". Expected format: directory-name:branch-name`            |
-| Directory doesn't exist      | `Repository directory "name" does not exist in project root: /path`                         |
-| Not a git repository         | `Directory "name" is not a git repository`                                                  |
-| Branch doesn't exist         | `Branch "name" does not exist in repository "repo". Available local branches: ...`          |
-
-### `bench source remove`
-
-Removes a named source from `base-config.yaml`. Displays a confirmation prompt with the source's repository mappings before removal.
+#### bench source remove
 
 ```bash
-# Remove a source (with confirmation prompt)
-bench source remove my-source
-
-# Remove a source without confirmation (for scripting)
-bench source remove my-source --yes
-bench source remove my-source -y
+bench source remove my-source          # with confirmation prompt
+bench source remove my-source --yes    # skip confirmation
+bench source remove my-source -y       # short form
 ```
 
-**Arguments:**
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | yes | Source name |
+| `--yes` / `-y` | flag | no | Skip confirmation prompt |
 
-| Argument | Type       | Required | Description                           |
-|----------|------------|----------|---------------------------------------|
-| `name`   | positional | yes      | Name of the source to remove          |
+Tab completion is supported for source names.
 
-**Options:**
+---
 
-| Option       | Type | Required | Description                    |
-|--------------|------|----------|--------------------------------|
-| `--yes`/`-y` | flag | no       | Skip the confirmation prompt   |
+### bench workbench
 
-**Behavior:**
+Manage workbenches -- isolated development environments with git worktrees, orchestration metadata, and AI-assisted tooling.
 
-- Only runs in ROOT mode (from the project root directory containing `.bench/base-config.yaml`)
-- Shows a detailed confirmation prompt before removal:
-  - With repos: `Source "my-source" has 2 repo(s): service-repo -> main, client-repo -> develop. Remove?`
-  - Without repos: `Source "my-source" has no repositories. Remove?`
-- The `--yes` / `-y` flag bypasses the confirmation prompt
-- If the user declines, prints `Removal cancelled.` and exits with code 0
-- On success, prints green message: `Source "my-source" removed successfully`
-- Tab autocompletion is supported for source names (requires shell completion installed via `bench --install-completion`)
+#### bench workbench create
 
-**Validation errors:**
-
-| Condition                  | Error message                                                                     |
-|----------------------------|-----------------------------------------------------------------------------------|
-| Uninitialized folder       | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
-| Not in project root        | `The 'source remove' command can only be run from the project root directory.`     |
-| Source not found           | `Source "name" not found. Available sources: ...`                                  |
-
-### `bench workbench create`
-
-Creates a new workbench from a source definition. A workbench is an isolated development environment containing git worktrees for each repository in the source, along with orchestration metadata (AGENTS.md, config, history, prompts, files, scripts).
+Creates a new workbench from a source definition.
 
 ```bash
-# Create a workbench using the default branch name (same as workbench name)
 bench workbench create my-source my-workbench
-
-# Create a workbench with a custom git branch name for worktrees
 bench workbench create my-source my-workbench --workbench-git-branch feature/custom-branch
 ```
 
-**Arguments:**
-
-| Argument | Type       | Required | Description                                |
-|----------|------------|----------|--------------------------------------------|
-| `source` | positional | yes      | Name of the source to use                  |
-| `name`   | positional | yes      | Name of the workbench to create            |
-
-**Options:**
-
-| Option                    | Type   | Required | Description                                                                  |
-|---------------------------|--------|----------|------------------------------------------------------------------------------|
-| `--workbench-git-branch`  | string | no       | Custom git branch name for worktrees (defaults to workbench name)            |
-
-**Behavior:**
-
-- Only runs in ROOT mode (from the project root directory containing `.bench/base-config.yaml`)
-- The specified source must exist and have at least one repository defined
-- Workbench names must be unique (checked in both config and filesystem)
-- For each repo in the source, a git worktree is created:
-  - If the branch already exists locally in the repo, it is checked out
-  - If the branch does not exist, a new branch is created from the source-branch
-- Symlinks use relative paths for portability (project can be moved without breaking links)
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source` | positional | yes | Source to use |
+| `name` | positional | yes | Workbench name (must be unique) |
+| `--workbench-git-branch` | option | no | Custom git branch name for worktrees (defaults to workbench name) |
 
 **What it creates:**
 
-In `.bench/workbench/<name>/` (real files):
-
-| Path                                   | Description                                      |
-|----------------------------------------|--------------------------------------------------|
-| `AGENTS.md`                            | Copied from `.bench/AGENTS.md`                   |
-| `bench/workbench-config.yaml`          | Workbench config (name, source, git-branch, repos)|
-| `bench/history.md`                     | Empty history file                               |
-| `bench/discussions/`                   | Empty directory (with `.gitkeep`)                |
-| `bench/tasks/`                         | Empty directory (with `.gitkeep`)                |
-| `bench/files/`                         | Copied from `.bench/files/`                      |
-| `bench/prompts/`                       | Copied from `.bench/prompts/`                    |
-| `bench/scripts/`                       | Copied from `.bench/scripts/`                    |
-
-In `workbench/<name>/` (workspace with symlinks):
-
-| Path                                   | Description                                      |
-|----------------------------------------|--------------------------------------------------|
-| `AGENTS.md`                            | Symlink to `.bench/workbench/<name>/AGENTS.md`   |
-| `bench/`                               | Symlink to `.bench/workbench/<name>/bench/`      |
-| `repo/<repo-dir>/`                     | Git worktree for each repo in the source         |
-
-**Config updates:**
-
-After running `bench workbench create my-source my-workbench`, `base-config.yaml` is updated:
-
-```yaml
-sources:
-  - name: my-source
-    repos:
-      - dir: service-repo
-        source-branch: main
-workbenches:
-  - name: my-workbench
-    source: my-source
-    git-branch: my-workbench
-    status: active
-models:
-  task: anthropic/claude-opus-4-6
-implementation-flow-template:
-  - name: Writing implementation docs
-    prompt: task-write-impl-docs.md
-    required-files:
-      - spec.md
-    output-files:
-      - impl.md
-  - name: Implementing
-    prompt: task-do-impl.md
-    required-files:
-      - spec.md
-      - impl.md
-    output-files: []
-  - name: Updating change docs
-    prompt: task-update-change-docs.md
-    required-files:
-      - spec.md
-      - impl.md
-    output-files: []
-```
-
-And `workbench-config.yaml` is created:
-
-```yaml
-name: my-workbench
-source: my-source
-git-branch: my-workbench
-repos:
-  - dir: service-repo
-    source-branch: main
-implementation-flow:
-  - name: Writing implementation docs
-    prompt: task-write-impl-docs.md
-    required-files:
-      - spec.md
-    output-files:
-      - impl.md
-  - name: Implementing
-    prompt: task-do-impl.md
-    required-files:
-      - spec.md
-      - impl.md
-    output-files: []
-  - name: Updating change docs
-    prompt: task-update-change-docs.md
-    required-files:
-      - spec.md
-      - impl.md
-    output-files: []
-```
-
-**Output on success:**
+The real files live under `.bench/workbench/<name>/`:
 
 ```
-Workbench "my-workbench" created successfully
-  Source: my-source
-  Git branch: my-workbench
-  Repositories:
-    service-repo -> workbench/my-workbench/repo/service-repo
+.bench/workbench/<name>/
+  AGENTS.md                        # Copied from .bench/AGENTS.md
+  bench/
+    workbench-config.yaml          # Workbench config (name, source, branch, repos, flow)
+    history.md                     # Empty history log
+    discussions/                   # Discussion summaries
+    tasks/                         # Task folders
+    files/                         # Copied from .bench/files/
+    prompts/                       # Copied from .bench/prompts/
+    scripts/                       # Copied from .bench/scripts/
 ```
+
+The workspace directory uses symlinks for portability:
+
+```
+workbench/<name>/
+  AGENTS.md                        # Symlink -> .bench/workbench/<name>/AGENTS.md
+  bench/                           # Symlink -> .bench/workbench/<name>/bench/
+  repo/
+    <repo-1>/                      # Git worktree
+    <repo-2>/                      # Git worktree
+    ...
+```
+
+For each repo in the source, a git worktree is created. If the branch already exists locally, it is checked out; otherwise a new branch is created from the source branch.
 
 **Validation errors:**
 
-| Condition                    | Error message                                                                     |
-|------------------------------|-----------------------------------------------------------------------------------|
-| Uninitialized folder         | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
-| Not in project root          | `The 'workbench create' command can only be run from the project root directory.`  |
-| Source not found             | `Source "name" not found. Available sources: ...`                                  |
-| Source has no repos          | `Source "name" has no repositories defined. Add repos first.`                      |
-| Workbench already exists (config) | `Workbench "name" already exists in configuration.`                           |
-| Workbench already exists (fs)     | `Workbench directory already exists: /path`                                   |
-| Git worktree failure         | Runtime error from git with stderr output                                         |
+| Condition | Error |
+|---|---|
+| Source not found | `Source "name" not found. Available sources: ...` |
+| Source has no repos | `Source "name" has no repositories defined. Add repos first.` |
+| Name already used (config) | `Workbench "name" already exists in configuration.` |
+| Name already used (filesystem) | `Workbench directory already exists: /path` |
 
-### `bench workbench update`
+#### bench workbench update
 
-Updates an existing workbench by adding or removing repositories. This command modifies the workbench's repository set and manages git worktrees accordingly. Removals are applied before additions, which allows replacing a repo in a single invocation.
+Add or remove repos from an existing workbench.
 
 ```bash
-# From project root — add a repo to a workbench
+# From project root (name required)
 bench workbench update my-workbench --add-repo new-repo:main
-
-# From project root — remove a repo from a workbench
 bench workbench update my-workbench --remove-repo old-repo
 
-# From project root — add and remove in one command
-bench workbench update my-workbench --remove-repo old-repo --add-repo new-repo:main
-
-# From project root — replace a repo's branch
-bench workbench update my-workbench --remove-repo service-repo --add-repo service-repo:feature-branch
-
-# From a workbench directory — name is inferred
+# From inside a workbench directory (name inferred)
 bench workbench update --add-repo new-repo:main
-bench workbench update --remove-repo old-repo
 ```
 
-**Arguments:**
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | ROOT mode: yes, WORKBENCH mode: omit | Workbench name |
+| `--add-repo` | option | no | Repo mapping to add (`directory:branch`). Repeatable. |
+| `--remove-repo` | option | no | Repo directory to remove (just the directory name, not `dir:branch`). Repeatable. |
 
-| Argument | Type       | Required                             | Description                                |
-|----------|------------|--------------------------------------|--------------------------------------------|
-| `name`   | positional | yes (ROOT mode) / omit (WORKBENCH)   | Name of the workbench to update            |
+At least one `--add-repo` or `--remove-repo` is required. Removals happen before additions. Removal uses `git worktree remove` without `--force` -- it will fail if the worktree has uncommitted changes.
 
-**Options:**
+#### bench workbench retire
 
-| Option         | Type   | Required | Description                                                                 |
-|----------------|--------|----------|-----------------------------------------------------------------------------|
-| `--add-repo`   | string | no       | Repository mapping to add in `directory-name:branch-name` format. Can be repeated. |
-| `--remove-repo`| string | no       | Repository directory name to remove. Can be repeated.                       |
-
-At least one `--add-repo` or `--remove-repo` option is required.
-
-**Behavior:**
-
-- Runs in ROOT mode (workbench name as positional argument) or WORKBENCH mode (name inferred from current directory)
-- In WORKBENCH mode, providing a positional name argument is an error
-- In ROOT mode, the positional name argument is required
-- Removals are applied before additions (operation order is deterministic)
-- All-or-nothing validation: all removals and additions are validated before any changes are made
-- `--remove-repo` takes just the directory name (not `dir:branch` like source update)
-- `--remove-repo` uses `git worktree remove` without `--force` — will fail if the worktree has uncommitted changes
-- `--add-repo` checks for duplicate directory names (after removals are applied)
-- For each added repo, if the workbench's `git-branch` already exists in that repo, it is checked out; otherwise a new branch is created from the source-branch
-
-**Config updates:**
-
-After running `bench workbench update my-workbench --add-repo new-repo:main`, the `workbench-config.yaml` is updated:
-
-```yaml
-name: my-workbench
-source: my-source
-git-branch: my-workbench
-repos:
-  - dir: service-repo
-    source-branch: main
-  - dir: new-repo
-    source-branch: main
-```
-
-A new git worktree is created at `workbench/my-workbench/repo/new-repo/`.
-
-**Output on success:**
-
-```
-Workbench "my-workbench" updated: added 1 repo(s)
-```
-
-```
-Workbench "my-workbench" updated: removed 1 repo(s), added 2 repo(s)
-```
-
-**Validation errors:**
-
-| Condition                    | Error message                                                                     |
-|------------------------------|-----------------------------------------------------------------------------------|
-| Uninitialized folder         | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
-| Not in ROOT or WORKBENCH mode | `The 'workbench update' command can only be run from the project root or a workbench directory.` |
-| No options provided          | `At least one --add-repo or --remove-repo option is required.`                    |
-| Workbench not found          | `Workbench "name" not found. Available workbenches: ...`                          |
-| Name arg in WORKBENCH mode   | `Do not provide a workbench name when running from a workbench directory.`        |
-| No name arg in ROOT mode     | `A workbench name is required when running from the project root.`                |
-| Repo not found for removal   | `Repo "dir" not found in workbench "name". Available repos: ...`                  |
-| Duplicate dir on add         | `Repository directory "dir" already exists in workbench "name".`                  |
-| Invalid `--add-repo` format  | `Invalid --add-repo format "value". Expected format: directory-name:branch-name`  |
-| Directory doesn't exist      | `Repository directory "name" does not exist in project root: /path`               |
-| Not a git repository         | `Directory "name" is not a git repository`                                        |
-| Branch doesn't exist         | `Branch "name" does not exist in repository "repo". Available local branches: ...`|
-| Dirty worktree on removal    | Git error from `git worktree remove` (no `--force`)                               |
-
-### `bench workbench retire`
-
-Retires a workbench by removing its workspace directory, pruning git worktree references, and marking it as inactive in `base-config.yaml`. The `.bench/workbench/<name>/` directory (containing history, tasks, prompts, etc.) is preserved.
+Retires a workbench by removing the workspace directory, pruning git worktree references, and marking it as `inactive`. The `.bench/workbench/<name>/` metadata directory is preserved (history, tasks, prompts, discussions, etc.).
 
 ```bash
-# Retire a workbench (with confirmation prompt)
-bench workbench retire my-workbench
-
-# Retire without confirmation (for scripting)
-bench workbench retire my-workbench --yes
-bench workbench retire my-workbench -y
+bench workbench retire my-workbench          # with confirmation
+bench workbench retire my-workbench --yes    # skip confirmation
 ```
 
-**Arguments:**
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | yes | Workbench name |
+| `--yes` / `-y` | flag | no | Skip confirmation prompt |
 
-| Argument | Type       | Required | Description                           |
-|----------|------------|----------|---------------------------------------|
-| `name`   | positional | yes      | Name of the workbench to retire       |
+**What is deleted vs. preserved:**
 
-**Options:**
+| Deleted | Preserved |
+|---|---|
+| `workbench/<name>/` (workspace, symlinks, worktrees) | `.bench/workbench/<name>/` (all metadata, history, tasks) |
 
-| Option       | Type | Required | Description                    |
-|--------------|------|----------|--------------------------------|
-| `--yes`/`-y` | flag | no       | Skip the confirmation prompt   |
+#### bench workbench activate
 
-**Behavior:**
-
-- Only runs in ROOT mode (from the project root directory containing `.bench/base-config.yaml`)
-- Validates that the workbench exists in `base-config.yaml` and is currently active
-- Validates that the workspace directory (`<project-root>/workbench/<name>`) exists
-- Shows a confirmation prompt before proceeding (unless `--yes` is passed):
-  `Retire workbench "my-workbench"? This will remove the workspace directory and prune associated worktrees.`
-- The `--yes` / `-y` flag bypasses the confirmation prompt
-- If the user declines, prints `Retirement cancelled.` and exits with code 0
-- Deletes the workspace directory `<project-root>/workbench/<name>` entirely via `shutil.rmtree`
-- Runs `git worktree prune` on each repository listed in the workbench's `workbench-config.yaml` to clean up stale worktree administrative references
-- Sets the workbench entry's `status` field to `"inactive"` in `base-config.yaml` (the entry is NOT removed)
-- Preserves `.bench/workbench/<name>/` completely (all history, tasks, prompts, discussions, files, scripts)
-- Tab autocompletion is supported for workbench names (requires shell completion installed via `bench --install-completion`)
-
-**What is deleted:**
-
-| Path | Description |
-|------|-------------|
-| `workbench/<name>/` | Entire workspace directory (symlinks, repo worktrees) |
-
-**What is preserved:**
-
-| Path | Description |
-|------|-------------|
-| `.bench/workbench/<name>/` | All workbench metadata, history, tasks, prompts, etc. |
-
-**Config updates:**
-
-After running `bench workbench retire my-workbench`, the workbench entry in `base-config.yaml` is updated:
-
-```yaml
-workbenches:
-  - name: my-workbench
-    source: my-source
-    git-branch: my-workbench
-    status: inactive
-```
-
-**Output on success:**
-
-```
-Workbench "my-workbench" retired successfully
-  Repos pruned: 2
-  Preserved: /path/to/project/.bench/workbench/my-workbench
-```
-
-**Validation errors:**
-
-| Condition                    | Error message                                                                     |
-|------------------------------|-----------------------------------------------------------------------------------|
-| Uninitialized folder         | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
-| Not in project root          | `The 'workbench retire' command can only be run from the project root directory.`  |
-| Workbench not in config      | `Workbench "X" not found. Available workbenches: a, b`                            |
-| Workbench already inactive   | `Workbench "X" is already inactive.`                                              |
-| Workspace dir missing        | `Workbench "X" workspace directory does not exist: <path>. The workbench may already be retired.` |
-
-### `bench workbench activate`
-
-Activates a retired (inactive) workbench by recreating its workspace directory with symlinks, recreating git worktrees for each repository, and setting the workbench status back to `"active"` in `base-config.yaml`. This is the inverse of `bench workbench retire`.
+Reactivates a retired workbench by recreating the workspace directory, symlinks, and git worktrees. This is the inverse of `retire`.
 
 ```bash
-# Activate a retired workbench
 bench workbench activate my-workbench
 ```
 
-**Arguments:**
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | yes | Workbench name (must be inactive) |
 
-| Argument | Type       | Required | Description                           |
-|----------|------------|----------|---------------------------------------|
-| `name`   | positional | yes      | Name of the workbench to activate     |
-
-**No options.** Activation is a non-destructive operation (only creates directories, symlinks, and worktrees), so no confirmation prompt is needed.
-
-**Behavior:**
-
-- Only runs in ROOT mode (from the project root directory containing `.bench/base-config.yaml`)
-- Validates that the workbench exists in `base-config.yaml` and is currently inactive
-- Validates that the `.bench/workbench/<name>/` directory exists (this is preserved during retirement and contains `workbench-config.yaml`, history, tasks, etc.)
-- Validates that the workspace directory `<project-root>/workbench/<name>` does NOT already exist — if it does, the command errors out (the user must clean up first)
-- Loads `workbench-config.yaml` from the preserved bench workbench directory to get the repo list, git branch, and source name
-- Recreates the workspace directory with symlinks (identical to what `bench workbench create` produces):
-  - `workbench/<name>/AGENTS.md` -> symlink to `.bench/workbench/<name>/AGENTS.md`
-  - `workbench/<name>/bench/` -> symlink to `.bench/workbench/<name>/bench/`
-  - `workbench/<name>/repo/`
-- Recreates git worktrees for each repository in `workbench-config.yaml`:
-  - If the git branch already exists locally in the repo, the worktree is created using the existing branch
-  - If the git branch does NOT exist (e.g., it was deleted after retirement), a new branch is recreated from the `source-branch` stored in `workbench-config.yaml`
-- Sets the workbench entry's `status` field from `"inactive"` back to `"active"` in `base-config.yaml`
-- Tab autocompletion only suggests **inactive** workbench names (requires shell completion installed via `bench --install-completion`)
-
-**Relationship to retire:**
+No confirmation needed -- activation is non-destructive. Tab completion only suggests inactive workbench names.
 
 | Retire does | Activate undoes |
 |---|---|
 | Removes `workbench/<name>/` | Recreates `workbench/<name>/` with symlinks |
 | Runs `git worktree prune` on each repo | Creates git worktrees for each repo |
-| Sets status to `"inactive"` | Sets status to `"active"` |
+| Sets status to `inactive` | Sets status to `active` |
 | Preserves `.bench/workbench/<name>/` | Reads from `.bench/workbench/<name>/` |
 
-**Config updates:**
+---
 
-After running `bench workbench activate my-workbench`, the workbench entry in `base-config.yaml` is updated:
+### bench task
 
-```yaml
-workbenches:
-  - name: my-workbench
-    source: my-source
-    git-branch: my-workbench
-    status: active
-```
+Manage tasks within a workbench. All task commands require WORKBENCH mode (run from inside a workbench directory).
 
-**Output on success:**
+#### bench task create
 
-```
-Workbench "my-workbench" activated successfully
-  Source: my-source
-  Git branch: my-workbench
-  Repositories:
-    service-repo -> workbench/my-workbench/repo/service-repo
-```
-
-**Validation errors:**
-
-| Condition                    | Error message                                                                     |
-|------------------------------|-----------------------------------------------------------------------------------|
-| Uninitialized folder         | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
-| Not in project root          | `The 'workbench activate' command can only be run from the project root directory.`|
-| Workbench not in config      | `Workbench "X" not found. Available workbenches: a, b`                            |
-| Workbench already active     | `Workbench "X" is already active.`                                                |
-| Bench workbench dir missing  | `Workbench "X" bench directory does not exist: <path>. The workbench data may have been deleted.` |
-| Workspace dir already exists | `Workbench "X" workspace directory already exists: <path>. Remove it first before activating.` |
-
-### `bench task create`
-
-Creates a new task within the current workbench. A task is a folder containing metadata and template files for tracking a unit of work (feature, bug fix, refactoring, etc.).
+Creates a new task with a dated folder and scaffold files.
 
 ```bash
-# Create a task (from a workbench directory)
-bench task create add-auth
-
-# Create a task and launch an interactive spec session
-bench task create add-auth --interview
+bench task create add-auth                  # create task scaffold
+bench task create add-auth --interview      # create + launch interactive AI spec session
 ```
 
-**Arguments:**
-
-| Argument | Type       | Required | Description                           |
-|----------|------------|----------|---------------------------------------|
-| `name`   | positional | yes      | Name of the task to create            |
-
-**Options:**
-
-| Option        | Type | Required | Description                                                      |
-|---------------|------|----------|------------------------------------------------------------------|
-| `--interview` | flag | no       | Launch an interactive opencode session to populate the spec       |
-
-**Behavior:**
-
-- Only runs in WORKBENCH mode (from a workbench workspace directory)
-- Task names must be unique within the workbench — uniqueness is checked by matching only the task name portion (after the `YYYYMMDD - ` date prefix) against existing task folders in `bench/tasks/`
-- Creates a folder named `YYYYMMDD - <name>` (where YYYYMMDD is today's date) in `<workbench>/bench/tasks/`
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | yes | Task name (must be unique within the workbench) |
+| `--interview` | flag | no | Launch an interactive AI session to build the spec |
 
 **What it creates:**
 
-| Path                                        | Description                                                     |
-|---------------------------------------------|-----------------------------------------------------------------|
-| `bench/tasks/YYYYMMDD - <name>/`            | Task folder                                                     |
-| `bench/tasks/YYYYMMDD - <name>/task.yaml`   | Task metadata: `name` and `completed` (null until completed)    |
-| `bench/tasks/YYYYMMDD - <name>/spec.md`     | Spec template with Introduction, Goals, and Specification sections |
-| `bench/tasks/YYYYMMDD - <name>/files.md`    | Empty file for listing files relevant to the task               |
-| `bench/tasks/YYYYMMDD - <name>/impl.md`     | Empty file for the implementation plan                          |
-| `bench/tasks/YYYYMMDD - <name>/notes.md`    | Empty file for miscellaneous notes                              |
+```
+bench/tasks/YYYYMMDD - <name>/
+  task.yaml     # Metadata: name + completed date (null until completed)
+  spec.md       # Specification template (Introduction, Goals, Specification)
+  files.md      # Files relevant to the task (initially empty)
+  impl.md       # Implementation plan (initially empty)
+  notes.md      # Miscellaneous notes (initially empty)
+```
 
-**`task.yaml` format:**
+**task.yaml format:**
 
 ```yaml
 name: add-auth
 completed: null
 ```
 
-**Output on success:**
+**`--interview` flag:** After creating the scaffold, reads the `task-create-spec.md` prompt template, substitutes `{{TASK}}` with the full task folder name (e.g., `20260208 - add-auth`), and launches opencode interactively. The AI agent engages in a back-and-forth conversation to build a complete specification document in `spec.md`.
 
-```
-Task "add-auth" created successfully
-  Folder: 20260208 - add-auth
+#### bench task refine
 
-  created 20260208 - add-auth/
-  created 20260208 - add-auth/task.yaml
-  created 20260208 - add-auth/spec.md
-  created 20260208 - add-auth/files.md
-  created 20260208 - add-auth/impl.md
-  created 20260208 - add-auth/notes.md
-```
-
-**`--interview` flag:**
-
-When `--interview` is provided:
-
-1. The task folder and all files are created first
-2. The creation summary is displayed
-3. The `task-create-spec.md` prompt template is read from `<workbench>/bench/prompts/`
-4. The `{{TASK}}` placeholder in the template is substituted with the full task folder name (e.g., `20260208 - add-auth`)
-5. opencode is launched **interactively** with the substituted prompt and the `models.task` model from `base-config.yaml`
-6. stdin/stdout/stderr are connected directly to the terminal, allowing a back-and-forth conversation with the AI agent
-
-**Validation errors:**
-
-| Condition                  | Error message                                                                     |
-|----------------------------|-----------------------------------------------------------------------------------|
-| Uninitialized folder       | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
-| Not in workbench directory | `The 'task create' command can only be run from a workbench directory.`            |
-| Task name already exists   | `Task "<name>" already exists in this workbench.`                                 |
-
-### `bench task refine`
-
-Refines an existing task's specification through an interactive AI session. Takes a task name, resolves it to the matching `YYYYMMDD - <name>` folder, reads the `task-refine-spec.md` prompt template, and launches opencode interactively.
+Refines an existing task's specification through an interactive AI session.
 
 ```bash
-# Refine a task's spec (from a workbench directory)
 bench task refine add-auth
 ```
 
-**Arguments:**
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | yes | Task name |
 
-| Argument | Type       | Required | Description                           |
-|----------|------------|----------|---------------------------------------|
-| `name`   | positional | yes      | Name of the task to refine            |
+Reads `task-refine-spec.md`, substitutes `{{TASK}}` and `{{REPOSITORIES}}`, and launches opencode interactively. The AI reviews the existing spec for completeness and asks clarifying questions to improve it.
 
-**Behavior:**
+Requires `spec.md` to exist in the task folder.
 
-- Only runs in WORKBENCH mode (from a workbench workspace directory)
-- Resolves the task name to a matching `YYYYMMDD - <name>` folder in `bench/tasks/`
-- Validates that `spec.md` exists within the resolved task folder
-- Reads the `task-refine-spec.md` prompt template from `<workbench>/bench/prompts/`
-- Substitutes the `{{TASK}}` placeholder with the full task folder name (e.g., `20260208 - add-auth`)
-- Launches opencode **interactively** with the substituted prompt and the `models.task` model from `base-config.yaml`
-- stdin/stdout/stderr are connected directly to the terminal for interactive conversation with the AI agent
+#### bench task implement
 
-**Output before launch:**
-
-```
-Refining task "add-auth"
-  Folder: 20260208 - add-auth
-```
-
-**After the session completes**, if the opencode process exits with a non-zero code, an error message is displayed and bench exits with that code.
-
-**Validation errors:**
-
-| Condition                       | Error message                                                                     |
-|---------------------------------|-----------------------------------------------------------------------------------|
-| Uninitialized folder            | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
-| Not in workbench directory      | `The 'task refine' command can only be run from a workbench directory.`            |
-| Task name not found             | `Task "<name>" not found in this workbench.`                                      |
-| Multiple tasks with same name   | `Multiple tasks match "<name>": <folder1>, <folder2>. Please specify the full folder name.` |
-| spec.md missing from task folder | `Task "<name>" is missing spec.md.`                                              |
-| Prompt template missing         | FileNotFoundError propagates naturally (fail-fast)                                |
-
-### `bench task implement`
-
-Implements a task through sequential AI-assisted phases defined by the workbench's configurable implementation flow. Takes a task name, resolves it to the matching `YYYYMMDD - <name>` folder, and orchestrates headless opencode sessions for each step in the `implementation-flow` from the workbench's `workbench-config.yaml`. Each phase uses `opencode run` (non-interactive, headless agent execution) rather than the interactive TUI, so the agent processes each phase to completion and exits automatically.
-
-The default flow (written by `bench init` and copied into workbenches at creation) consists of 3 steps: plan (write implementation docs), implement (carry out the implementation), and docs (update change documentation). Users can customize this flow by editing `implementation-flow-template` in `base-config.yaml` (for new workbenches) or `implementation-flow` in an individual workbench's `workbench-config.yaml`.
+Runs the configurable multi-phase implementation pipeline using headless AI agent sessions.
 
 ```bash
-# Run all configured phases (from a workbench directory)
 bench task implement add-auth
 ```
 
-**Arguments:**
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | yes | Task name |
 
-| Argument | Type       | Required | Description                              |
-|----------|------------|----------|------------------------------------------|
-| `name`   | positional | yes      | Name of the task to implement            |
+**Default implementation flow (3 phases):**
 
-**No options.** All steps in the configured implementation flow always run sequentially.
+| Phase | Name | Prompt | Required Inputs | Expected Outputs |
+|---|---|---|---|---|
+| 1 | Writing implementation docs | `task-write-impl-docs.md` | `spec.md` | `impl.md` |
+| 2 | Implementing | `task-do-impl.md` | `spec.md`, `impl.md` | -- |
+| 3 | Updating change docs | `task-update-change-docs.md` | `spec.md`, `impl.md` | -- |
 
-**Default implementation flow steps:**
+Each phase:
+1. Validates all `required-files` exist and are non-empty
+2. Reads and renders the prompt template (substituting `{{TASK}}` and `{{REPOSITORIES}}`)
+3. Runs opencode in **headless mode** (`opencode run`) -- the agent processes the prompt to completion and exits automatically
+4. Validates all `output-files` were created and are non-empty
 
-| Step | Name | Prompt Template | Required Inputs | Expected Outputs | Description |
-|------|------|-----------------|-----------------|------------------|-------------|
-| 1 | Writing implementation docs | `task-write-impl-docs.md` | `spec.md` | `impl.md` | Reads spec and writes implementation documentation |
-| 2 | Implementing | `task-do-impl.md` | `spec.md`, `impl.md` | — | Reads spec + impl docs and implements the feature |
-| 3 | Updating change docs | `task-update-change-docs.md` | `spec.md`, `impl.md` | — | Uses git diff to update CHANGELOG.md and README.md |
-
-**Behavior:**
-
-- Only runs in WORKBENCH mode (from a workbench workspace directory)
-- Resolves the task name to a matching `YYYYMMDD - <name>` folder in `bench/tasks/`
-- Reads the `implementation-flow` from the workbench's `workbench-config.yaml`
-- Validates that at least one step is configured (errors if empty)
-- For each step in the flow:
-  1. Pre-flight validation: checks that all `required-files` exist and are non-empty in the task folder
-  2. Displays a progress message (e.g., "Phase 1/3: Writing implementation docs...")
-  3. Reads the step's `prompt` template from `<workbench>/bench/prompts/`
-  4. Substitutes the `{{TASK}}` and `{{REPOSITORIES}}` placeholders
-  5. Launches opencode in **headless mode** via `opencode run` with the substituted prompt and the `models.task` model from `base-config.yaml` — the agent processes the message to completion and exits (no interactive TUI)
-  6. On completion, displays phase completion status
-  7. Inter-phase output validation: checks that all `output-files` were created and are non-empty
-- If any phase's opencode session exits non-zero, execution stops immediately with an error reporting which phase failed
-
-**Customizing the implementation flow:**
-
-The flow is stored in two locations:
-
-- **`base-config.yaml` → `implementation-flow-template`**: The project-wide template. New workbenches created with `bench workbench create` receive a copy of this template.
-- **`workbench-config.yaml` → `implementation-flow`**: The per-workbench flow. After creation, the workbench's flow is independent and can diverge from the template.
-
-Each step has 4 fields:
-
-```yaml
-implementation-flow:
-  - name: My Custom Step         # Display name (used in progress output and error messages)
-    prompt: my-custom-prompt.md  # Prompt template filename (in bench/prompts/)
-    required-files:              # Files that must exist and be non-empty before this step runs
-      - spec.md
-    output-files:                # Files that must exist and be non-empty after this step completes
-      - impl.md
-```
+If any phase fails, execution stops immediately.
 
 **Output during execution:**
 
@@ -956,346 +540,280 @@ Implementing task "add-auth"
   Phases: Writing implementation docs, Implementing, Updating change docs (3 total)
 
 Phase 1/3: Writing implementation docs...
-
-[opencode run — headless agent session]
-
+[opencode run -- headless agent session]
 Phase 1/3 complete: Writing implementation docs
 
 Phase 2/3: Implementing...
-
-[opencode run — headless agent session]
-
+[opencode run -- headless agent session]
 Phase 2/3 complete: Implementing
 
 Phase 3/3: Updating change docs...
-
-[opencode run — headless agent session]
-
+[opencode run -- headless agent session]
 Phase 3/3 complete: Updating change docs
 
 Task "add-auth" implementation complete (3 phases executed)
 ```
 
-**Validation errors:**
+See [Implementation Flow](#implementation-flow) for customization details.
 
-| Condition                              | Error message                                                                     |
-|----------------------------------------|-----------------------------------------------------------------------------------|
-| Uninitialized folder                   | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
-| Not in workbench directory             | `The 'task implement' command can only be run from a workbench directory.`         |
-| No implementation flow configured      | `No implementation flow steps configured for this workbench.`                     |
-| Task name not found                    | `Task "<name>" not found in this workbench.`                                      |
-| Multiple tasks with same name          | `Multiple tasks match "<name>": <folder1>, <folder2>. Please specify the full folder name.` |
-| Required file missing or empty         | `Task "<name>" requires <filename> to be present and non-empty.`                  |
-| Output file not created after step     | `Phase '<step name>' completed but <filename> was not created or is empty.`       |
-| Prompt template missing                | FileNotFoundError propagates naturally (fail-fast)                                |
-| opencode exits non-zero                | `Phase '<step name>' failed: opencode exited with code <code>.`                   |
+#### bench task complete
 
-### `bench task complete`
-
-Marks a task as complete by setting the `completed` field in its `task.yaml` file to the current date. The task's `task.yaml` is loaded and validated via the `TaskConfig` Pydantic model before updating.
+Marks a task as complete by setting `completed` in `task.yaml` to today's date.
 
 ```bash
-# Mark a task as complete (from a workbench directory)
 bench task complete add-auth
 ```
 
-**Arguments:**
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | yes | Task name |
 
-| Argument | Type       | Required | Description                              |
-|----------|------------|----------|------------------------------------------|
-| `name`   | positional | yes      | Name of the task to mark as complete     |
-
-**Behavior:**
-
-- Only runs in WORKBENCH mode (from a workbench workspace directory)
-- Resolves the task name to a matching `YYYYMMDD - <name>` folder in `bench/tasks/`
-- Loads `task.yaml` from the task folder and validates it via the `TaskConfig` Pydantic model
-- If the task's `completed` field is already set (not null), errors with a message indicating the task is already complete
-- Sets the `completed` field to today's date in `YYYY-MM-DD` (ISO 8601) format
-- Saves the updated `task.yaml` back to disk
-
-**`task.yaml` after completion:**
+**task.yaml after completion:**
 
 ```yaml
 name: add-auth
 completed: '2026-02-09'
 ```
 
-**Output on success:**
+#### bench task list
 
-```
-Task "add-auth" marked as complete
-  Folder: 20260208 - add-auth
-  Completed: 2026-02-09
-```
-
-**Validation errors:**
-
-| Condition                       | Error message                                                                     |
-|---------------------------------|-----------------------------------------------------------------------------------|
-| Uninitialized folder            | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
-| Not in workbench directory      | `The 'task complete' command can only be run from a workbench directory.`          |
-| Task name not found             | `Task "<name>" not found in this workbench.`                                      |
-| Multiple tasks with same name   | `Multiple tasks match "<name>": <folder1>, <folder2>. Please specify the full folder name.` |
-| task.yaml missing               | `task.yaml not found in <task_folder_path>`                                       |
-| task.yaml malformed             | Pydantic `ValidationError` propagates naturally                                   |
-| Task already completed          | `Task "<name>" is already marked as complete (completed: <date>).`                |
-
-### `bench task list`
-
-Lists tasks in the current workbench, displaying useful per-task metadata in a Rich Table. By default, only open (incomplete) tasks are shown.
+Lists tasks in the current workbench with metadata in a Rich table.
 
 ```bash
-# List open tasks (from a workbench directory)
-bench task list
-
-# List all tasks (including completed)
-bench task list --all
-
-# List only completed tasks
-bench task list --completed
+bench task list                # open tasks only (default)
+bench task list --all          # all tasks (open + completed)
+bench task list --completed    # completed tasks only
 ```
 
-**Options:**
-
-| Option        | Type | Required | Description                                          |
-|---------------|------|----------|------------------------------------------------------|
-| `--all`       | flag | no       | Show all tasks (both incomplete and completed)       |
-| `--completed` | flag | no       | Show only completed tasks                            |
-
-The `--all` and `--completed` flags are mutually exclusive.
-
-**Behavior:**
-
-- Only runs in WORKBENCH mode (from a workbench workspace directory)
-- Scans all subdirectories in `bench/tasks/` matching the `YYYYMMDD - <name>` pattern
-- For each matching directory, loads `task.yaml` and checks for `spec.md`, `impl.md`, and `files.md`
-- Tasks with missing or malformed `task.yaml` are silently skipped (do not crash the list)
-- Tasks are sorted by creation date ascending (oldest first)
-
-**Display columns:**
-
-| Column      | Description                                                        |
-|-------------|--------------------------------------------------------------------|
-| Name        | Task name (from `task.yaml` or folder name)                        |
-| Created     | Date from folder name prefix, formatted as YYYY-MM-DD              |
-| Completed   | Completed date from `task.yaml`, or empty if not completed         |
-| Spec        | Green "yes" if `spec.md` exists and is non-empty, dim "-" otherwise |
-| Impl        | Green "yes" if `impl.md` exists and is non-empty, dim "-" otherwise |
-| Files       | Green "yes" if `files.md` exists and is non-empty, dim "-" otherwise |
-
-**Output example:**
-
-```
-┏━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━┳━━━━━━┳━━━━━━━┓
-┃ Name     ┃ Created    ┃ Completed  ┃ Spec ┃ Impl ┃ Files ┃
-┡━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━╇━━━━━━╇━━━━━━━┩
-│ add-auth │ 2026-02-08 │            │ yes  │ yes  │ -     │
-│ add-api  │ 2026-02-09 │            │ yes  │ -    │ -     │
-└──────────┴────────────┴────────────┴──────┴──────┴───────┘
-```
-
-**Empty-state messages:**
-
-| Filter        | Message                                  |
-|---------------|------------------------------------------|
-| (no flags)    | `No open tasks in this workbench.`       |
-| `--all`       | `No tasks in this workbench.`            |
-| `--completed` | `No completed tasks in this workbench.`  |
-
-**Validation errors:**
-
-| Condition                       | Error message                                                                     |
-|---------------------------------|-----------------------------------------------------------------------------------|
-| Uninitialized folder            | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
-| Not in workbench directory      | `The 'task list' command can only be run from a workbench directory.`              |
-| `--all` and `--completed` both  | `--all and --completed are mutually exclusive.`                                   |
-
-### Seed Prompt Templates
-
-When `bench init` creates the `.bench/` directory, it includes 5 seed prompt templates in `.bench/prompts/`. These are markdown files designed for coding agents working within workbenches. When a workbench is created (`bench workbench create`), these prompts are automatically copied into the workbench's `bench/prompts/` directory.
-
-Prompt templates contain two placeholders that are substituted by task commands (`bench task create --interview`, `bench task refine`, `bench task implement`) before being passed to opencode:
-
-- **`{{TASK}}`** — replaced with the full task folder name (e.g., `20260208 - add-auth`)
-- **`{{REPOSITORIES}}`** — replaced with a `<repositories>` block listing all repo directories from the workbench's `workbench-config.yaml`, using `./repo/<dir>` paths (one per line)
-
-| Prompt File | Purpose |
+| Option | Description |
 |---|---|
-| `task-create-spec.md` | Interactive spec creation — agent asks the user questions to build a specification document in `spec.md` |
-| `task-refine-spec.md` | Spec refinement — agent reviews an existing spec for completeness and asks clarifying questions |
-| `task-write-impl-docs.md` | Implementation planning — agent reads the spec and produces `impl.md` (implementation plan), `notes.md`, and `files.md` (affected files list) |
-| `task-do-impl.md` | Implementation execution — agent reads spec + implementation docs and implements the feature |
-| `task-update-change-docs.md` | Change documentation — agent discovers changes via `git diff` and updates `CHANGELOG.md` and `README.md` |
+| `--all` | Show all tasks |
+| `--completed` | Show only completed tasks |
 
-All prompt paths are relative to the workbench directory (e.g., `./bench/tasks/{{TASK}}/spec.md`).
+`--all` and `--completed` are mutually exclusive.
 
-**Rendered `{{REPOSITORIES}}` example** (for a workbench with `service-repo` and `client-repo`):
+**Table columns:**
 
+| Column | Description |
+|---|---|
+| Name | Task name |
+| Created | Date from folder prefix (YYYY-MM-DD) |
+| Completed | Completion date, or empty |
+| Spec | Green "yes" if `spec.md` exists and is non-empty |
+| Impl | Green "yes" if `impl.md` exists and is non-empty |
+| Files | Green "yes" if `files.md` exists and is non-empty |
+
+Tasks are sorted by creation date ascending. Tasks with missing or malformed `task.yaml` are silently skipped.
+
+---
+
+### bench discuss
+
+Start and manage free-form AI discussion sessions.
+
+#### bench discuss start
+
+Launches an interactive opencode discussion session.
+
+```bash
+bench discuss start
 ```
+
+The AI agent engages in a free-form conversation. When the conversation ends, the agent writes a dated summary markdown file to `bench/discussions/YYYYMMDD - <title>.md` capturing the main topics, decisions, action items, and reasoning discussed.
+
+#### bench discuss list
+
+Lists past discussions as a Rich table.
+
+```bash
+bench discuss list
+```
+
+Scans `bench/discussions/` for `.md` files matching the `YYYYMMDD - <title>.md` pattern. Displays name and creation date, sorted by date ascending.
+
+---
+
+## Configuration
+
+### Project Configuration
+
+**File:** `.bench/base-config.yaml`
+
+The central configuration file for a bench project.
+
+```yaml
+sources:
+  - name: my-source
+    repos:
+      - dir: service-repo
+        source-branch: main
+      - dir: client-repo
+        source-branch: develop
+
+workbenches:
+  - name: my-workbench
+    source: my-source
+    git-branch: my-workbench
+    status: active
+
+models:
+  task: anthropic/claude-opus-4-6
+  discuss: anthropic/claude-opus-4-6
+
+implementation-flow-template:
+  - name: Writing implementation docs
+    prompt: task-write-impl-docs.md
+    required-files:
+      - spec.md
+    output-files:
+      - impl.md
+  - name: Implementing
+    prompt: task-do-impl.md
+    required-files:
+      - spec.md
+      - impl.md
+    output-files: []
+  - name: Updating change docs
+    prompt: task-update-change-docs.md
+    required-files:
+      - spec.md
+      - impl.md
+    output-files: []
+```
+
+| Section | Description |
+|---|---|
+| `sources` | Named source definitions with repo-to-branch mappings |
+| `workbenches` | Registry of workbenches with name, source, git branch, and active/inactive status |
+| `models` | AI model identifiers for different operations |
+| `implementation-flow-template` | Template for new workbenches' implementation pipeline |
+
+### Workbench Configuration
+
+**File:** `.bench/workbench/<name>/bench/workbench-config.yaml`
+
+Per-workbench configuration, created when a workbench is created and independent of the project template afterward.
+
+```yaml
+name: my-workbench
+source: my-source
+git-branch: my-workbench
+repos:
+  - dir: service-repo
+    source-branch: main
+implementation-flow:
+  - name: Writing implementation docs
+    prompt: task-write-impl-docs.md
+    required-files:
+      - spec.md
+    output-files:
+      - impl.md
+  - name: Implementing
+    prompt: task-do-impl.md
+    required-files:
+      - spec.md
+      - impl.md
+    output-files: []
+  - name: Updating change docs
+    prompt: task-update-change-docs.md
+    required-files:
+      - spec.md
+      - impl.md
+    output-files: []
+```
+
+### AI Model Configuration
+
+The `models` section in `base-config.yaml` configures which AI models the coding agent uses.
+
+| Field | Default | Description |
+|---|---|---|
+| `models.task` | `anthropic/claude-opus-4-6` | Model for task operations (create --interview, refine, implement) |
+| `models.discuss` | `anthropic/claude-opus-4-6` | Model for discussion sessions |
+
+The `Models` configuration is designed to be extensible -- additional fields (e.g., `planning`, `code_review`) can be added as needed.
+
+### Implementation Flow
+
+The implementation pipeline is fully customizable per-project and per-workbench.
+
+**Two locations:**
+
+| Location | Scope | Used when |
+|---|---|---|
+| `base-config.yaml` -> `implementation-flow-template` | Project-wide template | Copied into new workbenches at creation time |
+| `workbench-config.yaml` -> `implementation-flow` | Per-workbench | Used by `bench task implement`; can diverge from the template |
+
+**Step schema:**
+
+```yaml
+- name: My Custom Step             # Display name for progress output
+  prompt: my-custom-prompt.md      # Prompt template filename (in bench/prompts/)
+  required-files:                  # Must exist and be non-empty before this step
+    - spec.md
+  output-files:                    # Must exist and be non-empty after this step
+    - impl.md
+```
+
+You can add, remove, or reorder steps. Each step runs opencode in headless mode (`opencode run`).
+
+### Prompt Templates
+
+Prompt templates are markdown files in `bench/prompts/` within each workbench. They contain two placeholders substituted at runtime:
+
+| Placeholder | Replaced with |
+|---|---|
+| `{{TASK}}` | Full task folder name (e.g., `20260208 - add-auth`) |
+| `{{REPOSITORIES}}` | A `<repositories>` block listing all repo directories from the workbench config |
+
+**Rendered `{{REPOSITORIES}}` example:**
+
+```xml
 <repositories>
 ./repo/service-repo
 ./repo/client-repo
 </repositories>
 ```
 
-If the workbench has no repos, the block renders as an empty tag: `<repositories>\n</repositories>`.
+**Seed prompt templates created by `bench init`:**
 
-### AI Model Configuration
+| File | Used by | Purpose |
+|---|---|---|
+| `task-create-spec.md` | `task create --interview` | Interactive back-and-forth to build `spec.md` |
+| `task-refine-spec.md` | `task refine` | Review spec for completeness, ask clarifying questions |
+| `task-write-impl-docs.md` | `task implement` (phase 1) | Read spec, write `impl.md`, `notes.md`, `files.md` |
+| `task-do-impl.md` | `task implement` (phase 2) | Read spec + impl docs, implement the feature |
+| `task-update-change-docs.md` | `task implement` (phase 3) | Use `git diff` to update `CHANGELOG.md` and `README.md` |
+| `discuss.md` | `discuss start` | Free-form conversation with summary generation |
 
-The `base-config.yaml` file includes a `models` section that configures which AI models coding agents should use for various tasks within workbenches. This section is written explicitly when `bench init` creates a new project.
+All prompt templates are freely editable. Paths within prompts are relative to the workbench directory.
 
-```yaml
-sources: []
-models:
-  task: anthropic/claude-opus-4-6
-```
+### AGENTS.md
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `models.task` | `str` | `anthropic/claude-opus-4-6` | AI model identifier for task execution |
+Each workbench has an `AGENTS.md` file (copied from `.bench/AGENTS.md` at creation) that provides project-wide instructions to the AI agent. This file is referenced by all prompt templates and is read by the agent at the start of every session.
 
-**Behavior:**
+The default template includes sections for sources, workbench guidelines, and coding conventions.
 
-- `bench init` writes the `models` section with default values into `base-config.yaml`
-- `bench status` displays the configured task model as a "Task Model" row when `base_config` is available (ROOT, WORKBENCH, and WITHIN_ROOT modes)
-- Existing `base-config.yaml` files without a `models` key load correctly — Pydantic applies the default `Models()` with `task="anthropic/claude-opus-4-6"`
-- The `Models` sub-model lives only in `BaseConfig` (project root config); workbenches inherit it from their project root and do not override it
-- The `Models` model is designed to be extensible — future keys (e.g., `planning`, `code_review`, `chat`) can be added as new fields with defaults
+---
 
-## Internal APIs
+## Operating Modes
 
-### OpenCode Interface
+Bench detects its operating mode by walking up the directory tree from the current working directory:
 
-Bench includes an internal opencode interface for invoking the `opencode` coding agent CLI. It provides three modes of execution:
+| Mode | Condition | Available commands |
+|---|---|---|
+| **ROOT** | CWD is the project root (contains `.bench/base-config.yaml`) | `source *`, `workbench *`, `status` |
+| **WORKBENCH** | CWD is a workbench workspace (has `bench/workbench-config.yaml`) | `task *`, `discuss *`, `status` |
+| **WITHIN_ROOT** | Inside a project but not at root or in a workbench | `status` |
+| **UNINITIALIZED** | No bench project found (walked to filesystem root) | `init` |
 
-| Service Function                        | Description                                              |
-|-----------------------------------------|----------------------------------------------------------|
-| `run_opencode_prompt(prompt, model, cwd)` | Execute opencode with captured output, returning an `OpenCodeResult` with stdout, stderr, and return_code |
-| `run_task_interview(task_folder_name)` | Read prompt template, substitute `{{TASK}}` and `{{REPOSITORIES}}`, and launch opencode interactively (used by `bench task create --interview`) |
-| `resolve_task(task_name)` | Resolve a task name to its folder, validate spec.md exists, return metadata dict (used by `bench task refine`) |
-| `refine_task(task_folder_name)` | Read `task-refine-spec.md` prompt template, substitute `{{TASK}}` and `{{REPOSITORIES}}`, and launch opencode interactively (used by `bench task refine`) |
-| `complete_task(task_name)` | Load task.yaml, validate via TaskConfig, set completed date to today, save back to disk (used by `bench task complete`) |
-| `list_tasks(task_filter)` | Enforce WORKBENCH mode, scan task entries from repository, convert to TaskEntry models, filter by open/completed/all, sort by created_date ascending (used by `bench task list`) |
-| `resolve_task_for_implement(task_name)` | Resolve a task name to its folder without per-file validation, return metadata dict with task_folder_path (used by `bench task implement`) |
-| `select_implement_phases(run_plan, run_implement, run_docs)` | Select which implementation phases to execute based on flags; returns all phases if no flags set |
-| `validate_task_phase(task_folder_path, phase, task_name)` | Validate that all required input files exist and are non-empty for a phase |
-| `run_task_phase(task_folder_name, phase)` | Read a phase's prompt template, substitute `{{TASK}}` and `{{REPOSITORIES}}`, and launch opencode in headless mode via `opencode run` (used by `bench task implement`) |
-| `validate_task_phase_outputs(task_folder_path, phase)` | Validate that expected output files were created after a phase completes |
+Both `.bench/` (canonical) and `bench/` (fallback) directory names are supported for project detection.
 
-| Repository Function                          | Description                                              |
-|----------------------------------------------|----------------------------------------------------------|
-| `run_prompt(prompt, model, cwd)`             | Captured-output execution — returns `OpenCodeResult`     |
-| `run_prompt_interactive(prompt, model, cwd)` | Terminal pass-through execution — stdin/stdout/stderr connected to terminal for interactive AI agent conversation; returns exit code |
-| `run_command(message, model, cwd)`           | Headless execution via `opencode run` — non-interactive agent that processes the message to completion and exits; stdout/stderr passed through to terminal for real-time progress; returns exit code |
-| `task_file_exists_and_nonempty(task_folder, filename)` | Check whether a file in a task folder exists and has non-zero length |
-| `load_task_yaml(task_folder)` | Load and return `task.yaml` from a task folder as a dict |
-| `save_task_yaml(task_folder, data)` | Write task data dict to `task.yaml` in a task folder |
-| `list_task_entries(tasks_dir)` | Scan the tasks directory and return raw task entry data (name, folder, created date, completed, file existence flags); skips entries with missing/malformed task.yaml |
-| `render_repositories_block(repo_dirs)` | Render a `<repositories>` block from a list of repo directory names with `./repo/<dir>` paths |
-| `remove_workbench_workspace(workspace_path)` | Remove a workbench workspace directory tree via `shutil.rmtree`; raises `FileNotFoundError` if directory doesn't exist |
+---
 
-The caller is responsible for:
-- Reading prompt files from `bench/prompts/`
-- Rendering prompt templates (substituting variables like `{{TASK}}` and `{{REPOSITORIES}}`)
-- Providing the model identifier string (e.g., `anthropic/claude-opus-4-6`)
-- Providing the working directory path
+## Architecture
 
-**Execution details:**
-- All three modes use `subprocess.run` with `timeout=None` (coding agent runs can take minutes or hours)
-- Prompt/message text is passed as a list argument (no `shell=True`) — no shell injection risk
-- Catches `FileNotFoundError` and raises `RuntimeError` with "opencode is not installed" message
-- Captured mode (`run_prompt`): non-zero return codes raise `RuntimeError` with command, return code, and stderr details
-- Interactive mode (`run_prompt_interactive`): does NOT raise on non-zero exit (the user may ctrl-C the interview); returns the exit code directly
-- Headless mode (`run_command`): invokes `opencode run --model <model> <message>` — the agent runs to completion without a TUI; does NOT raise on non-zero exit; returns the exit code directly; used by `bench task implement` phases
-
-#### OpenCode Data Model
-
-- **`OpenCodeResult`** — Result of an opencode CLI execution with `stdout` (str), `stderr` (str), and `return_code` (int)
-- **`TaskConfig`** — Schema for a task's `task.yaml` metadata file with `name` (str) and `completed` (str | None, default None)
-- **`TaskFilter`** — String enum with `OPEN`, `COMPLETED`, and `ALL` values for filtering task listings
-- **`TaskEntry`** — Enriched task entry for list display with `name` (str), `folder_name` (str), `created_date` (datetime.date), `completed` (str | None), `has_spec` (bool), `has_impl` (bool), `has_files` (bool)
-
-### Git Interface
-
-Bench includes an internal git interface used by other features (not exposed as CLI commands). It provides three operations via the service layer:
-
-| Service Function       | Description                                              |
-|------------------------|----------------------------------------------------------|
-| `get_git_status(path)` | Parse `git status --porcelain=v2 --branch` into a structured `GitStatus` model containing branch name, file changes (staged/unstaged), and untracked files |
-| `create_git_branch(name, path)` | Create a new branch without checking it out     |
-| `push_git_branch(name, path)`   | Push a branch to origin with smart upstream tracking (`-u` on first push) |
-
-All git operations use the `git` CLI via `subprocess.run` (no Python git libraries). Errors are wrapped in `RuntimeError` with descriptive messages including git stderr output.
-
-#### Git Data Models
-
-- **`FileStatus`** — String enum: `MODIFIED`, `ADDED`, `DELETED`, `RENAMED`, `COPIED`, `UNTRACKED`, `TYPE_CHANGED`, `UNMERGED`
-- **`GitFileChange`** — A single file change entry with `path`, `status`, and `staged` flag
-- **`GitStatus`** — Parsed git status with `branch` (None if detached HEAD), `files` (list of `GitFileChange`), and `untracked` (list of paths)
-
-#### Git Repository Utilities
-
-| Repository Function              | Description                                                    |
-|----------------------------------|----------------------------------------------------------------|
-| `is_git_repository(path)`        | Check if a directory is a git repo or worktree                 |
-| `list_local_branches(repo_path)` | List all local branch names in a repository                    |
-| `branch_exists(branch_name, repo_path)` | Check if a local branch exists in a repository           |
-| `add_worktree(repo_path, worktree_path, branch_name, ...)` | Add a git worktree with optional branch creation |
-| `remove_worktree(repo_path, worktree_path)` | Remove a git worktree (no `--force`; fails on dirty worktrees) |
-| `prune_worktrees(repo_path)` | Prune stale worktree references (`git worktree prune`) for worktrees whose directories have been removed |
-
-These utility functions are used by the `source add`, `workbench create`, `workbench update`, and `workbench retire` logic but are available for general use.
-
-## Development
-
-### Project Structure
-
-```
-src/bench/
-  __init__.py              # Package root
-  cli/
-    __init__.py            # Typer app entry point, command registration
-    init.py                # "init" command (thin handler: service -> view)
-    status.py              # "status" command (thin handler: service -> view)
-    source.py              # "source" subcommand group (source add, source list, source update, source remove)
-    task.py                # "task" subcommand group (task create, task complete, task list, task refine, task implement)
-    workbench.py           # "workbench" subcommand group (workbench create, workbench update, workbench retire)
-  model/
-    __init__.py            # Re-exports all public model classes
-    mode.py                # BenchMode enum (ROOT, WORKBENCH, WITHIN_ROOT, UNINITIALIZED)
-    config.py              # Pydantic schemas: BaseConfig (with sources, workbenches, models), Models, WorkbenchConfig (with source, git-branch, repos)
-    context.py             # BenchContext runtime state model
-    git.py                 # Git data models: FileStatus, GitFileChange, GitStatus
-    opencode.py            # OpenCode data models: OpenCodeResult
-    source.py              # Source data models: Source, SourceRepo
-    task.py                # Task data models: TaskConfig, TaskEntry, TaskFilter
-    workbench.py           # Workbench data models: WorkbenchEntry, WorkbenchStatus
-  service/
-    __init__.py            # Re-exports public service functions
-    init.py                # Init business logic (initialize_project)
-    mode_detection.py      # Mode detection logic (detect_mode)
-    git.py                 # Git service facades (get_git_status, create_git_branch, push_git_branch)
-    opencode.py            # OpenCode service facade (run_opencode_prompt)
-    source.py              # Source business logic (add_source, list_sources, update_source, remove_source)
-    task.py                # Task business logic (create_task, complete_task, list_tasks, run_task_interview, resolve_task, refine_task, resolve_task_for_implement, select_implement_phases, validate_task_phase, run_task_phase, validate_task_phase_outputs, _substitute_prompt_placeholders)
-    _validation.py         # Shared validation helpers (parse_repo_arg, validate_repo) — private to service package
-    workbench.py           # Workbench business logic (create_workbench, update_workbench, retire_workbench)
-  repository/
-    __init__.py            # Re-exports public repository functions
-    filesystem.py          # Filesystem I/O (find_bench_root, find_workbench_marker, load_yaml_file, save_yaml_file, create_bench_scaffold, create_workbench_scaffold, create_workbench_workspace, remove_workbench_workspace, create_task_scaffold, list_task_names, list_task_entries, read_prompt_file, find_task_folder, task_spec_exists, task_file_exists_and_nonempty, load_task_yaml, save_task_yaml, render_repositories_block)
-    git.py                 # Raw git subprocess operations (git_status, create_branch, push_branch, is_git_repository, list_local_branches, branch_exists, add_worktree, remove_worktree, prune_worktrees)
-    opencode.py            # Raw opencode subprocess operations (run_prompt, run_prompt_interactive, run_command, OPENCODE_EXECUTABLE)
-  view/
-    __init__.py            # Re-exports public view functions
-    init.py                # Rich terminal output for init display (display_init_success, display_init_error)
-    status.py              # Rich terminal output for status display
-    source.py              # Rich terminal output for source operations (display_source_added, display_source_error, display_source_list, display_source_removed, display_source_updated)
-    task.py                # Rich terminal output for task operations (display_task_created, display_task_completed, display_task_list, display_task_error, display_task_refine_start, display_task_implement_start, display_task_implement_phase_start, display_task_implement_phase_complete, display_task_implement_complete)
-    workbench.py           # Rich terminal output for workbench operations (display_workbench_created, display_workbench_error, display_workbench_retired, display_workbench_updated)
-```
-
-### Architecture
+### Layered Design
 
 The codebase follows a strict 5-layer architecture with unidirectional dependency flow:
 
@@ -1316,33 +834,102 @@ The codebase follows a strict 5-layer architecture with unidirectional dependenc
                     \             /
                      v           v
                     +-----------+
-                    |   model   |   Shared data structures
+                    |   model   |   Shared data structures (Pydantic)
                     +-----------+
 ```
 
-- **cli** depends on service and view (never the reverse)
-- **service** depends on repository (never the reverse)
-- **repository** performs raw I/O (filesystem, git subprocess)
-- **view** depends only on model
-- **model** is depended on by all layers; depends on nothing
+**Dependency rules:**
+
+- **cli** -- Thin command handlers (5-10 lines each). Calls a service function, passes the result to a view function, handles exceptions. Depends on service and view.
+- **service** -- Business logic, validation, orchestration. Depends on repository and model.
+- **repository** -- Raw I/O: filesystem operations, git subprocess calls, opencode subprocess calls. Depends on model.
+- **view** -- Rich terminal output (tables, colored text). Depends on model only.
+- **model** -- Pydantic data models and enums. No dependencies on other layers.
+
+### Project Structure
+
+```
+src/bench/
+  __init__.py
+  cli/
+    __init__.py            # Typer app, command registration, default callback
+    init.py                # bench init
+    status.py              # bench status
+    source.py              # bench source {add,list,update,remove}
+    workbench.py           # bench workbench {create,update,retire,activate}
+    task.py                # bench task {create,refine,implement,complete,list}
+    discuss.py             # bench discuss {start,list}
+  model/
+    __init__.py            # Re-exports all model classes
+    mode.py                # BenchMode enum
+    config.py              # BaseConfig, WorkbenchConfig, Models, ImplementationStep
+    context.py             # BenchContext (runtime state)
+    git.py                 # FileStatus, GitFileChange, GitStatus
+    opencode.py            # OpenCodeResult
+    source.py              # Source, SourceRepo
+    task.py                # TaskConfig, TaskEntry, TaskFilter
+    workbench.py           # WorkbenchEntry, WorkbenchStatus
+    discuss.py             # DiscussionEntry
+  service/
+    __init__.py            # Re-exports public service functions
+    mode_detection.py      # detect_mode()
+    init.py                # initialize_project()
+    git.py                 # get_git_status(), create_git_branch(), push_git_branch()
+    opencode.py            # run_opencode_prompt()
+    source.py              # add/list/update/remove_source()
+    workbench.py           # create/update/retire/activate_workbench()
+    task.py                # create/complete/list/refine/implement task functions
+    discuss.py             # start_discussion(), list_discussions()
+    _validation.py         # parse_repo_arg(), validate_repo() (private helpers)
+  repository/
+    __init__.py            # Re-exports public repository functions
+    filesystem.py          # YAML I/O, scaffold creation, task/prompt helpers, constants
+    git.py                 # Raw git CLI operations via subprocess
+    opencode.py            # Raw opencode CLI operations via subprocess
+  view/
+    __init__.py            # Re-exports public view functions
+    init.py                # Init display
+    status.py              # Status display
+    source.py              # Source display
+    workbench.py           # Workbench display
+    task.py                # Task display
+    discuss.py             # Discussion display
+```
 
 ### Dependencies
 
 **Runtime:**
 
-| Package  | Purpose                              |
-|----------|--------------------------------------|
-| typer    | CLI framework                        |
-| rich     | Rich terminal output for view layer  |
-| pyyaml   | YAML parsing for config/data files   |
-| pydantic | Data validation and model definitions|
+| Package | Purpose |
+|---|---|
+| [typer](https://typer.tiangolo.com/) | CLI framework (commands, arguments, options, tab completion) |
+| [rich](https://rich.readthedocs.io/) | Terminal output (tables, colored text, formatting) |
+| [pyyaml](https://pyyaml.org/) | YAML parsing for config and data files |
+| [pydantic](https://docs.pydantic.dev/) | Data validation and model definitions |
 
 **Dev:**
 
-| Package      | Version | Purpose            |
-|--------------|---------|--------------------|
-| ruff         | 0.15.0  | Linting/formatting |
-| ty           | 0.0.15  | Type checking      |
+| Package | Version | Purpose |
+|---|---|---|
+| [ruff](https://docs.astral.sh/ruff/) | 0.15.0 | Linting and code formatting |
+| [ty](https://docs.astral.sh/ty/) | 0.0.15 | Type checking |
+
+**External tools (must be on PATH):**
+
+| Tool | Purpose |
+|---|---|
+| `git` (>= 2.11) | Git operations (worktrees, branching, status parsing) |
+| `opencode` | AI coding agent (interactive TUI and headless `run` mode) |
+
+---
+
+## Development
+
+### Setup
+
+```bash
+make setup    # uv sync --all-groups
+```
 
 ### Quality Checks
 
@@ -1350,15 +937,30 @@ The codebase follows a strict 5-layer architecture with unidirectional dependenc
 make check
 ```
 
-This runs:
-1. `ruff check --show-fixes --fix src/` — linting
-2. `ruff format src/` — formatting
-3. `ty check src/` — type checking
+This runs sequentially:
+1. `ruff check --show-fixes --fix src/` -- linting with auto-fix
+2. `ruff format src/` -- code formatting
+3. `ty check src/` -- type checking
+
+### Install (after changes)
+
+```bash
+make install  # uv tool install --reinstall .
+```
 
 ### Entry Point
 
-The CLI entry point is defined in `pyproject.toml` as `bench = 'bench.cli:app'`, pointing to the Typer application instance in `src/bench/cli/__init__.py`.
+The CLI entry point is defined in `pyproject.toml`:
+
+```toml
+[project.scripts]
+bench = 'bench.cli:app'
+```
+
+This points to the Typer application instance in `src/bench/cli/__init__.py`.
+
+---
 
 ## License
 
-Not yet specified.
+MIT License. Copyright (c) 2026 Berthold Pauw.
