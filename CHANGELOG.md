@@ -1,5 +1,17 @@
 # Changelog
 
+## Version 0.3.0
+
+### Updated
+
+- Tab completion for `bench workbench retire` and `bench workbench update` now only suggests active workbenches, preventing users from selecting already-retired workbenches that would fail
+- `bench workbench update` now rejects inactive workbenches with a clear error message suggesting `bench workbench activate` first, instead of failing with a confusing git worktree error
+- AGENTS.md template now includes a "Key Commands" section for each repository
+
+### Removed
+
+- Removed the unfiltered `_complete_workbench_name` autocompletion callback (replaced by status-aware variants)
+
 ## Version 0.2.0
 
 ### New

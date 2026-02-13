@@ -34,21 +34,6 @@ def _complete_source_name(incomplete: str) -> list[str]:
         return []
 
 
-def _complete_workbench_name(incomplete: str) -> list[str]:
-    """Provide tab-completion for workbench names."""
-    try:
-        context = detect_mode(Path.cwd())
-        if context.base_config is None:
-            return []
-        return [
-            w.name
-            for w in context.base_config.workbenches
-            if w.name.startswith(incomplete)
-        ]
-    except Exception:
-        return []
-
-
 def _complete_inactive_workbench_name(incomplete: str) -> list[str]:
     """Provide tab-completion for inactive workbench names."""
     try:
@@ -59,6 +44,21 @@ def _complete_inactive_workbench_name(incomplete: str) -> list[str]:
             w.name
             for w in context.base_config.workbenches
             if w.name.startswith(incomplete) and w.status == WorkbenchStatus.INACTIVE
+        ]
+    except Exception:
+        return []
+
+
+def _complete_active_workbench_name(incomplete: str) -> list[str]:
+    """Provide tab-completion for active workbench names."""
+    try:
+        context = detect_mode(Path.cwd())
+        if context.base_config is None:
+            return []
+        return [
+            w.name
+            for w in context.base_config.workbenches
+            if w.name.startswith(incomplete) and w.status == WorkbenchStatus.ACTIVE
         ]
     except Exception:
         return []
@@ -98,7 +98,7 @@ def workbench_update(
         str | None,
         typer.Argument(
             help="Name of the workbench to update (required from project root, omit from workbench directory)",
-            autocompletion=_complete_workbench_name,
+            autocompletion=_complete_active_workbench_name,
         ),
     ] = None,
     add_repo: Annotated[
@@ -157,7 +157,7 @@ def workbench_retire(
         str,
         typer.Argument(
             help="Name of the workbench to retire",
-            autocompletion=_complete_workbench_name,
+            autocompletion=_complete_active_workbench_name,
         ),
     ],
     yes: Annotated[

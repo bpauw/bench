@@ -403,7 +403,7 @@ For each repo in the source, a git worktree is created. If the branch already ex
 
 #### bench workbench update
 
-Add or remove repos from an existing workbench.
+Add or remove repos from an existing active workbench.
 
 ```bash
 # From project root (name required)
@@ -422,6 +422,14 @@ bench workbench update --add-repo new-repo:main
 
 At least one `--add-repo` or `--remove-repo` is required. Removals happen before additions. Removal uses `git worktree remove` without `--force` -- it will fail if the worktree has uncommitted changes.
 
+Tab completion only suggests active workbench names. Only active workbenches can be updated -- attempting to update an inactive (retired) workbench produces an error directing you to activate it first with `bench workbench activate`.
+
+**Validation errors:**
+
+| Condition | Error |
+|---|---|
+| Workbench is inactive | `Workbench "name" is inactive. Activate it first with 'bench workbench activate'.` |
+
 #### bench workbench retire
 
 Retires a workbench by removing the workspace directory, pruning git worktree references, and marking it as `inactive`. The `.bench/workbench/<name>/` metadata directory is preserved (history, tasks, prompts, discussions, etc.).
@@ -433,8 +441,10 @@ bench workbench retire my-workbench --yes    # skip confirmation
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `name` | positional | yes | Workbench name |
+| `name` | positional | yes | Workbench name (must be active) |
 | `--yes` / `-y` | flag | no | Skip confirmation prompt |
+
+Tab completion only suggests active workbench names. Already-retired workbenches are excluded since retiring them again would fail.
 
 **What is deleted vs. preserved:**
 
@@ -808,7 +818,7 @@ All prompt templates are freely editable. Paths within prompts are relative to t
 
 Each workbench has an `AGENTS.md` file (copied from `.bench/AGENTS.md` at creation) that provides project-wide instructions to the AI agent. This file is referenced by all prompt templates and is read by the agent at the start of every session.
 
-During `bench init`, the `AGENTS.md` file is automatically populated by an AI agent that scans all sibling directories in the project root. The agent produces a structured "Repositories Overview" document with sections for each repository covering key files, structures, features, patterns, and conventions. This gives the AI agent immediate context about the entire project when working on tasks.
+During `bench init`, the `AGENTS.md` file is automatically populated by an AI agent that scans all sibling directories in the project root. The agent produces a structured "Repositories Overview" document with sections for each repository covering key commands, key files, structures, features, patterns, and conventions. This gives the AI agent immediate context about the entire project when working on tasks.
 
 If the auto-population step is skipped (via `--skip-agents-md`) or fails, the file contains a minimal placeholder that can be manually edited. The prompt used for population is stored at `.bench/prompts/populate-agents.md` and can be customized before re-running.
 

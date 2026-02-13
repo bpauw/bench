@@ -268,7 +268,14 @@ def update_workbench(
             f"Available workbenches: {available}"
         )
 
-    # Phase 5: Load workbench-config.yaml
+    # Phase 5: Check status — must be active
+    if workbench_entry.get("status") == "inactive":
+        raise ValueError(
+            f'Workbench "{workbench_name}" is inactive. '
+            f"Activate it first with `bench workbench activate`."
+        )
+
+    # Phase 6: Load workbench-config.yaml
     wb_config_path = (
         context.root_path
         / context.bench_dir_name
@@ -282,7 +289,7 @@ def update_workbench(
     git_branch: str = wb_data.get("git-branch", workbench_name)
     repos_list: list[dict[str, str]] = wb_data.get("repos", [])
 
-    # Phase 6: Validate removals (all-or-nothing)
+    # Phase 7: Validate removals (all-or-nothing)
     existing_repo_dirs = {r.get("dir") for r in repos_list}
     for dir_name in remove_repo_args:
         if dir_name not in existing_repo_dirs:
@@ -296,11 +303,11 @@ def update_workbench(
                 f"Available repos: {available}"
             )
 
-    # Phase 7: Apply removals to in-memory repos list
+    # Phase 8: Apply removals to in-memory repos list
     remove_set = set(remove_repo_args)
     remaining_repos = [r for r in repos_list if r.get("dir") not in remove_set]
 
-    # Phase 8: Validate additions (against remaining repos)
+    # Phase 9: Validate additions (against remaining repos)
     remaining_dirs = {r.get("dir") for r in remaining_repos}
     for dir_name, branch_name in parsed_adds:
         if dir_name in remaining_dirs:
@@ -311,14 +318,14 @@ def update_workbench(
         validate_repo(dir_name, branch_name, context.root_path)
         remaining_dirs.add(dir_name)  # prevent duplicates within the add list
 
-    # Phase 9: Check git branch existence for additions
+    # Phase 10: Check git branch existence for additions
     add_info: list[tuple[str, str, bool]] = []  # (dir, source_branch, needs_creation)
     for dir_name, source_branch in parsed_adds:
         repo_path = context.root_path / dir_name
         exists = branch_exists(git_branch, repo_path)
         add_info.append((dir_name, source_branch, not exists))
 
-    # Phase 10: Execute removals — remove git worktrees
+    # Phase 11: Execute removals — remove git worktrees
     for dir_name in remove_repo_args:
         worktree_path = (
             context.root_path / "workbench" / workbench_name / "repo" / dir_name
@@ -326,7 +333,7 @@ def update_workbench(
         repo_path = context.root_path / dir_name
         remove_worktree(repo_path, worktree_path)
 
-    # Phase 11: Execute additions — create git worktrees
+    # Phase 12: Execute additions — create git worktrees
     for dir_name, source_branch, needs_creation in add_info:
         repo_path = context.root_path / dir_name
         worktree_path = (
@@ -347,7 +354,7 @@ def update_workbench(
                 branch_name=git_branch,
             )
 
-    # Phase 12: Update workbench-config.yaml
+    # Phase 13: Update workbench-config.yaml
     # Apply removals
     updated_repos = [r for r in repos_list if r.get("dir") not in remove_set]
     # Apply additions
@@ -357,7 +364,7 @@ def update_workbench(
     wb_data["repos"] = updated_repos
     save_yaml_file(wb_config_path, wb_data)
 
-    # Phase 13: Return summary message
+    # Phase 14: Return summary message
     removed_count = len(remove_repo_args)
     added_count = len(parsed_adds)
     parts: list[str] = []
