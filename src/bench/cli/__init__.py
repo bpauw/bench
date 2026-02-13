@@ -4,6 +4,7 @@ import typer
 
 from bench.cli import discuss as discuss_module
 from bench.cli import init as init_module
+from bench.cli import populate as populate_module
 from bench.cli import source as source_module
 from bench.cli import status as status_module
 from bench.cli import task as task_module
@@ -15,6 +16,7 @@ app: typer.Typer = typer.Typer()
 
 # Register subcommands
 init_module.register(app)
+populate_module.register(app)
 source_module.register(app)
 workbench_module.register(app)
 discuss_module.register(app)

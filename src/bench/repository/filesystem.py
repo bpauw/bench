@@ -369,6 +369,21 @@ def list_sibling_directories(root_path: Path) -> list[str]:
     )
 
 
+def list_repo_directories(workspace_path: Path) -> list[str]:
+    """Return sorted names of immediate child directories inside the workspace's repo/ directory.
+
+    Args:
+        workspace_path: The workbench workspace directory (CWD in WORKBENCH mode).
+
+    Returns:
+        Sorted list of directory name strings. Empty list if repo/ doesn't exist.
+    """
+    repo_dir = workspace_path / REPO_DIR_NAME
+    if not repo_dir.is_dir():
+        return []
+    return sorted(entry.name for entry in repo_dir.iterdir() if entry.is_dir())
+
+
 def load_yaml_file(path: Path) -> dict[str, Any]:
     """Read and parse a YAML file.
 

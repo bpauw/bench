@@ -16,6 +16,8 @@ Bench manages git worktrees organized into **workbenches** -- isolated developme
 - [Commands](#commands)
   - [bench init](#bench-init)
   - [bench status](#bench-status)
+  - [bench populate](#bench-populate)
+    - [populate agents](#bench-populate-agents)
   - [bench source](#bench-source)
     - [source add](#bench-source-add)
     - [source list](#bench-source-list)
@@ -187,6 +189,7 @@ Running `bench` with no subcommand defaults to `bench status`.
 |---|---|---|
 | `bench init` | UNINITIALIZED | Initialize a new bench project and populate AGENTS.md |
 | `bench status` | Any | Display current mode, project root, workbench info, AI model |
+| `bench populate agents` | ROOT / WORKBENCH | (Re)generate AGENTS.md using an AI agent |
 | `bench source add` | ROOT | Add a named source with repo-to-branch mappings |
 | `bench source list` | ROOT | List all sources |
 | `bench source update` | ROOT | Add/remove repos from an existing source |
@@ -245,8 +248,8 @@ After the scaffold is created, bench automatically detects sibling directories i
 
 The population step is designed to be resilient:
 - If no sibling directories are found, population is silently skipped and the file retains a minimal placeholder.
-- If `opencode` is not installed or the agent fails, a warning is displayed but `bench init` still succeeds. The `AGENTS.md` file will contain a minimal placeholder that you can edit manually.
-- The prompt used for population is saved to `.bench/prompts/populate-agents.md` and can be freely edited before re-running manually.
+- If `opencode` is not installed or the agent fails, a warning is displayed but `bench init` still succeeds. The `AGENTS.md` file will contain a minimal placeholder that you can edit manually or regenerate later with `bench populate agents`.
+- The prompt used for population is saved to `.bench/prompts/populate-agents.md` and can be freely edited before re-running with `bench populate agents`.
 
 **Validation errors:**
 
@@ -266,6 +269,61 @@ Displays the current bench operating mode, project root path, workbench info (if
 bench status
 bench              # same (default command)
 ```
+
+---
+
+### bench populate
+
+Regenerate AI-produced files. The `populate` command group provides subcommands for regenerating files that are initially created during `bench init` or workbench setup. Currently supports regenerating `AGENTS.md`.
+
+#### bench populate agents
+
+(Re)generates the `AGENTS.md` file by running an AI agent that scans relevant directories and writes structured project context. This is the same operation that `bench init` performs automatically, but available as a standalone command so you can re-run it at any time -- for example, after adding new repositories, restructuring code, or editing the population prompt template.
+
+```bash
+bench populate agents                          # use default model from config
+bench populate agents --model anthropic/claude-sonnet-4-20250514  # override AI model
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--model` | string | from config | Override the AI model used for population (falls back to `models.task` in `base-config.yaml`) |
+
+**Context-aware behavior:**
+
+The command adapts based on where you run it:
+
+| Aspect | ROOT mode | WORKBENCH mode |
+|---|---|---|
+| AGENTS.md written to | `.bench/AGENTS.md` | The workbench's own `AGENTS.md` (in the scaffold at `.bench/workbench/<name>/AGENTS.md`) |
+| Directories scanned | Sibling directories of the project root (non-bench directories) | Contents of the `repo/` directory within the workbench workspace |
+| Prompt template read from | `.bench/prompts/populate-agents.md` | The workbench's local `bench/prompts/populate-agents.md` (allows per-workbench customization) |
+| Config for default model | `.bench/base-config.yaml` | `.bench/base-config.yaml` (always from project root) |
+
+**How it works:**
+
+1. Detects the current mode and validates that the command can run (ROOT or WORKBENCH only)
+2. Discovers directories to scan (sibling directories at root, or `repo/` subdirectories in a workbench)
+3. If no directories are found, the command returns silently (no-op)
+4. Loads the `populate-agents.md` prompt template and substitutes the `{{DIRECTORIES}}` placeholder with the discovered directory paths
+5. Resolves the AI model (`--model` CLI override takes priority over `models.task` from config)
+6. Runs `opencode run` (headless) with the rendered prompt, scoped to the appropriate working directory
+7. The AI agent scans the directories and writes structured content into `AGENTS.md`
+
+**When to re-run:**
+
+- After adding new source repositories to your project
+- After significant codebase restructuring within existing repos
+- After editing `.bench/prompts/populate-agents.md` to customize what the agent looks for
+- When switching to a different AI model that may produce better results
+
+**Validation errors:**
+
+| Condition | Error |
+|---|---|
+| Uninitialized directory | `Not inside a bench project. Run 'bench init' first.` |
+| Inside project but not at root or workbench | `Cannot populate AGENTS.md from inside the project tree. Run this command from the project root or a workbench directory.` |
+| opencode not installed or fails | `opencode exited with code <N> during AGENTS.md population` |
 
 ---
 
@@ -942,7 +1000,7 @@ Prompt templates are markdown files in `bench/prompts/` within each workbench. T
 | `task-write-impl-docs.md` | `task implement` (phase 1) | Read spec, write `impl.md`, `notes.md`, `files.md` |
 | `task-do-impl.md` | `task implement` (phase 2) | Read spec + impl docs, implement the feature |
 | `task-update-change-docs.md` | `task implement` (phase 3) | Use `git diff` to update `CHANGELOG.md` and `README.md` |
-| `populate-agents.md` | `bench init` | AI prompt for scanning repos and populating `AGENTS.md` |
+| `populate-agents.md` | `bench init`, `bench populate agents` | AI prompt for scanning repos and populating `AGENTS.md` |
 | `discuss.md` | `discuss start` | Free-form conversation with summary generation |
 
 All prompt templates are freely editable. Paths within prompts are relative to the workbench directory.
@@ -955,6 +1013,15 @@ During `bench init`, the `AGENTS.md` file is automatically populated by an AI ag
 
 If the auto-population step is skipped (via `--skip-agents-md`) or fails, the file contains a minimal placeholder that can be manually edited. The prompt used for population is stored at `.bench/prompts/populate-agents.md` and can be customized before re-running.
 
+To regenerate `AGENTS.md` at any time (e.g., after adding repos or restructuring code), use the standalone command:
+
+```bash
+bench populate agents                   # from project root or workbench
+bench populate agents --model <model>   # with model override
+```
+
+When run from a workbench directory, the command scans the `repo/` subdirectories and updates the workbench's own `AGENTS.md`, using the workbench-local prompt template (which can be customized independently of the root template).
+
 ---
 
 ## Operating Modes
@@ -963,8 +1030,8 @@ Bench detects its operating mode by walking up the directory tree from the curre
 
 | Mode | Condition | Available commands |
 |---|---|---|
-| **ROOT** | CWD is the project root (contains `.bench/base-config.yaml`) | `source *`, `workbench *`, `status` |
-| **WORKBENCH** | CWD is a workbench workspace (has `bench/workbench-config.yaml`) | `task *`, `discuss *`, `status` |
+| **ROOT** | CWD is the project root (contains `.bench/base-config.yaml`) | `source *`, `workbench *`, `populate *`, `status` |
+| **WORKBENCH** | CWD is a workbench workspace (has `bench/workbench-config.yaml`) | `task *`, `discuss *`, `populate *`, `status` |
 | **WITHIN_ROOT** | Inside a project but not at root or in a workbench | `status` |
 | **UNINITIALIZED** | No bench project found (walked to filesystem root) | `init` |
 
@@ -1015,6 +1082,7 @@ src/bench/
   cli/
     __init__.py            # Typer app, command registration, default callback
     init.py                # bench init
+    populate.py            # bench populate {agents}
     status.py              # bench status
     source.py              # bench source {add,list,update,remove}
     workbench.py           # bench workbench {create,update,retire,delete,activate,list}
@@ -1034,7 +1102,8 @@ src/bench/
   service/
     __init__.py            # Re-exports public service functions
     mode_detection.py      # detect_mode()
-    init.py                # initialize_project(), populate_agents_md()
+    init.py                # initialize_project()
+    populate.py            # populate_agents_md()
     git.py                 # get_git_status(), create_git_branch(), push_git_branch()
     opencode.py            # run_opencode_prompt()
     source.py              # add/list/update/remove_source()
@@ -1050,6 +1119,7 @@ src/bench/
   view/
     __init__.py            # Re-exports public view functions
     init.py                # Init display
+    populate.py            # Populate display
     status.py              # Status display
     source.py              # Source display
     workbench.py           # Workbench display

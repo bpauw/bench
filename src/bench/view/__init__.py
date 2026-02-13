@@ -9,6 +9,11 @@ from bench.view.init import (
     display_init_error,
     display_init_success,
 )
+from bench.view.populate import (
+    display_populate_agents_error,
+    display_populate_agents_start,
+    display_populate_agents_warning,
+)
 from bench.view.source import (
     display_source_added,
     display_source_error,
@@ -50,6 +55,9 @@ __all__ = [
     "display_discuss_start",
     "display_init_error",
     "display_init_success",
+    "display_populate_agents_error",
+    "display_populate_agents_start",
+    "display_populate_agents_warning",
     "display_source_added",
     "display_source_error",
     "display_source_list",

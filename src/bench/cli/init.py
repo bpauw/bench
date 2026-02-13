@@ -3,7 +3,8 @@ from typing import Annotated
 
 import typer
 
-from bench.service.init import initialize_project, populate_agents_md
+from bench.service.init import initialize_project
+from bench.service.populate import populate_agents_md
 from bench.view.init import (
     display_agents_populating,
     display_agents_population_warning,

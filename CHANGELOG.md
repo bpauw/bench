@@ -2,6 +2,17 @@
 
 ## Version 0.6.0
 
+### New
+
+- Added `bench populate agents` command that (re)generates the `AGENTS.md` file for the current context. Works from both project root (scans sibling directories) and workbench directories (scans `repo/` subdirectories). Supports `--model` option to override the AI model used for population.
+- Added `bench populate` command group, designed for future extensibility (e.g., `bench populate prompts`, `bench populate config`)
+
+### Updated
+
+- Refactored `populate_agents_md()` from `service/init.py` into a standalone `service/populate.py` module, generalized to support both ROOT and WORKBENCH modes
+- `bench init` now imports the population logic from the new `service/populate.py` module (behavior unchanged)
+- Added `list_repo_directories()` repository function for scanning workbench `repo/` contents in WORKBENCH mode
+
 ## Version 0.5.0
 
 ### New
