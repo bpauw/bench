@@ -19,11 +19,18 @@ def agents(
             "--model", help="Override the model used for AGENTS.md population."
         ),
     ] = None,
+    repo: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--repo",
+            help="Specify repositories to include (can be used multiple times). If not specified, all repositories are included.",
+        ),
+    ] = None,
 ) -> None:
     """Populate AGENTS.md using an AI agent."""
     try:
         display_populate_agents_start()
-        populate_agents_md(Path.cwd(), model)
+        populate_agents_md(Path.cwd(), model, repo)
     except (ValueError, RuntimeError) as e:
         display_populate_agents_error(str(e))
         raise typer.Exit(code=1)

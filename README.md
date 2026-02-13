@@ -281,13 +281,16 @@ Regenerate AI-produced files. The `populate` command group provides subcommands 
 (Re)generates the `AGENTS.md` file by running an AI agent that scans relevant directories and writes structured project context. This is the same operation that `bench init` performs automatically, but available as a standalone command so you can re-run it at any time -- for example, after adding new repositories, restructuring code, or editing the population prompt template.
 
 ```bash
-bench populate agents                          # use default model from config
+bench populate agents                          # use default model from config, scan all repos
 bench populate agents --model anthropic/claude-sonnet-4-20250514  # override AI model
+bench populate agents --repo bench-code        # scan only bench-code repository
+bench populate agents --repo repo1 --repo repo2  # scan specific repositories
 ```
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `--model` | string | from config | Override the AI model used for population (falls back to `models.task` in `base-config.yaml`) |
+| `--repo` | string (repeatable) | all repos | Specify which repositories to include. Can be used multiple times. If not specified, all discovered repositories are scanned. |
 
 **Context-aware behavior:**
 
@@ -304,11 +307,12 @@ The command adapts based on where you run it:
 
 1. Detects the current mode and validates that the command can run (ROOT or WORKBENCH only)
 2. Discovers directories to scan (sibling directories at root, or `repo/` subdirectories in a workbench)
-3. If no directories are found, the command returns silently (no-op)
-4. Loads the `populate-agents.md` prompt template and substitutes the `{{DIRECTORIES}}` placeholder with the discovered directory paths
-5. Resolves the AI model (`--model` CLI override takes priority over `models.task` from config)
-6. Runs `opencode run` (headless) with the rendered prompt, scoped to the appropriate working directory
-7. The AI agent scans the directories and writes structured content into `AGENTS.md`
+3. If `--repo` options are provided, validates that all specified repositories exist in the discovered directories and filters the list to include only the requested repositories
+4. If no directories are found (or all filtered out), the command returns silently (no-op)
+5. Loads the `populate-agents.md` prompt template and substitutes the `{{DIRECTORIES}}` placeholder with the discovered (and optionally filtered) directory paths
+6. Resolves the AI model (`--model` CLI override takes priority over `models.task` from config)
+7. Runs `opencode run` (headless) with the rendered prompt, scoped to the appropriate working directory
+8. The AI agent scans the directories and writes structured content into `AGENTS.md`
 
 **When to re-run:**
 
@@ -316,6 +320,7 @@ The command adapts based on where you run it:
 - After significant codebase restructuring within existing repos
 - After editing `.bench/prompts/populate-agents.md` to customize what the agent looks for
 - When switching to a different AI model that may produce better results
+- When you want to update documentation for specific repositories only (use `--repo` to scan selectively and save time)
 
 **Validation errors:**
 
@@ -323,6 +328,7 @@ The command adapts based on where you run it:
 |---|---|
 | Uninitialized directory | `Not inside a bench project. Run 'bench init' first.` |
 | Inside project but not at root or workbench | `Cannot populate AGENTS.md from inside the project tree. Run this command from the project root or a workbench directory.` |
+| Unknown repository name in `--repo` | `Unknown repositories: <names>. Available: <list>` |
 | opencode not installed or fails | `opencode exited with code <N> during AGENTS.md population` |
 
 ---

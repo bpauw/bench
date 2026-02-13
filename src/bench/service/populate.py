@@ -17,7 +17,9 @@ from bench.repository.opencode import run_command
 from bench.service.mode_detection import detect_mode
 
 
-def populate_agents_md(cwd: Path, model: str | None = None) -> None:
+def populate_agents_md(
+    cwd: Path, model: str | None = None, repos: list[str] | None = None
+) -> None:
     """Populate AGENTS.md by running an AI agent to scan relevant directories.
 
     Adapts behavior based on detected mode:
@@ -30,9 +32,13 @@ def populate_agents_md(cwd: Path, model: str | None = None) -> None:
     Args:
         cwd: The current working directory.
         model: Optional model override. Falls back to models.task from base-config.yaml.
+        repos: Optional list of repository names to include. If None or empty, all
+               discovered repositories are included. Each name is validated against
+               discovered directories.
 
     Raises:
-        ValueError: If mode is UNINITIALIZED or WITHIN_ROOT.
+        ValueError: If mode is UNINITIALIZED or WITHIN_ROOT, or if any repo name
+                    in repos is not found among discovered directories.
         RuntimeError: If opencode is not installed or returns a non-zero exit code.
     """
     # Phase 1: Detect mode and validate
@@ -70,6 +76,23 @@ def populate_agents_md(cwd: Path, model: str | None = None) -> None:
 
     if not directories:
         return
+
+    # Phase 3.5: Filter directories by requested repos (if specified)
+    if repos is not None and len(repos) > 0:
+        # Validate: all requested repos must exist in discovered directories
+        available_dirs = set(directories)
+        requested_dirs = set(repos)
+        unknown_dirs = requested_dirs - available_dirs
+
+        if unknown_dirs:
+            unknown_list = ", ".join(sorted(unknown_dirs))
+            available_list = ", ".join(sorted(directories))
+            raise ValueError(
+                f"Unknown repositories: {unknown_list}. Available: {available_list}"
+            )
+
+        # Filter: keep only requested directories, preserve sorted order
+        directories = [d for d in directories if d in requested_dirs]
 
     # Phase 4: Load config and resolve model
     if context.base_config is not None:
