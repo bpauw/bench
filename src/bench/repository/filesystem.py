@@ -178,10 +178,34 @@ Tasks:
     - If README.md exists:
         - Comprehensively update README.md so that it incorporates all of the changes that have been made
         - Focus on adding a lot of detail to user interactions with the program
+        - Keep technical details high level
 
 Notes:
 
 - Only read the top 200 lines of CHANGELOG.md
+
+Templates:
+
+Changelog:
+
+```md
+# Changelog
+
+## Version 0.1.0
+
+### New
+
+- Added `cool new feature`
+
+### Updated
+
+- Refactored `awesome old feature` to be more efficient
+
+### Fixed
+
+- Some other feature's inputs no longer broken
+
+```
 """
 
 DISCUSS_PROMPT_TEMPLATE: str = """\
