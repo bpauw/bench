@@ -1,6 +1,6 @@
 from bench.service.discuss import list_discussions, start_discussion
 from bench.service.git import create_git_branch, get_git_status, push_git_branch
-from bench.service.init import initialize_project
+from bench.service.init import initialize_project, populate_agents_md
 from bench.service.mode_detection import detect_mode
 from bench.service.opencode import run_opencode_prompt
 from bench.service.source import add_source, list_sources, remove_source, update_source
@@ -36,6 +36,7 @@ __all__ = [
     "list_discussions",
     "list_sources",
     "list_tasks",
+    "populate_agents_md",
     "push_git_branch",
     "refine_task",
     "remove_source",

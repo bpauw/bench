@@ -3,7 +3,12 @@ from bench.view.discuss import (
     display_discuss_list,
     display_discuss_start,
 )
-from bench.view.init import display_init_error, display_init_success
+from bench.view.init import (
+    display_agents_populating,
+    display_agents_population_warning,
+    display_init_error,
+    display_init_success,
+)
 from bench.view.source import (
     display_source_added,
     display_source_error,
@@ -32,6 +37,8 @@ from bench.view.workbench import (
 )
 
 __all__ = [
+    "display_agents_populating",
+    "display_agents_population_warning",
     "display_discuss_error",
     "display_discuss_list",
     "display_discuss_start",

@@ -36,6 +36,8 @@ IMPL_MD_FILENAME: str = "impl.md"
 NOTES_MD_FILENAME: str = "notes.md"
 TASK_PLACEHOLDER: str = "{{TASK}}"
 REPOSITORIES_PLACEHOLDER: str = "{{REPOSITORIES}}"
+POPULATE_AGENTS_PROMPT_FILENAME: str = "populate-agents.md"
+DIRECTORIES_PLACEHOLDER: str = "{{DIRECTORIES}}"
 
 SPEC_TEMPLATE: str = """\
 # Spec
@@ -50,17 +52,7 @@ SPEC_TEMPLATE: str = """\
 AGENTS_MD_TEMPLATE: str = """\
 # Project Instructions
 
-## Sources
-
-<!-- Define your source repository-to-branch mappings here -->
-
-## Workbench Guidelines
-
-<!-- Guidelines for working within workbenches -->
-
-## Conventions
-
-<!-- Project-specific coding conventions and standards -->
+<!-- This file will be populated by bench init. -->
 """
 
 # Discuss prompt seed
@@ -228,6 +220,51 @@ When the user indicates the conversation is complete (e.g., says "done", "that's
 3. Let the user know the summary has been saved and they can exit opencode
 """
 
+POPULATE_AGENTS_PROMPT_TEMPLATE: str = """\
+output-file: .bench/AGENTS.md
+
+Directories to scan:
+
+{{DIRECTORIES}}
+
+Instructions:
+
+You are populating the AGENTS.md file for a multi-repository project. Your task is to scan the directories listed above and produce a comprehensive reference document.
+
+IMPORTANT:
+- DO NOT scan or reference the .bench directory
+- DO scan each listed directory thoroughly
+- Write your output directly to the output-file specified above
+
+Use the following template structure for your output:
+
+# Repositories Overview
+
+When working on a task that targets specific repositories, concentrate your attention on those repositories. Use the information below to quickly orient yourself to each repository's structure, conventions, and patterns. Not every repository will be relevant to every task -- identify which repositories are involved and focus deeply on those.
+
+## <Repository Name>
+
+### Key Files
+
+List the most important files and their purposes. Focus on entry points, configuration files, and core modules.
+
+### Key Structures
+
+Describe the major data structures, classes, models, and type definitions. Include their relationships.
+
+### Key Features
+
+Summarize the main features and capabilities of this repository.
+
+### Key Patterns
+
+Document recurring design patterns, architectural decisions, and idioms used in the code.
+
+### Key Conventions
+
+Note coding style conventions, naming conventions, file organization rules, and any project-specific standards.
+"""
+
 # Default implementation flow template (written into base-config.yaml at init)
 DEFAULT_IMPLEMENTATION_FLOW_TEMPLATE: list[dict[str, str | list[str]]] = [
     {
@@ -258,6 +295,7 @@ PROMPT_SEED_FILES: dict[str, str] = {
     TASK_DO_IMPL_FILENAME: TASK_DO_IMPL_TEMPLATE,
     TASK_UPDATE_CHANGE_DOCS_FILENAME: TASK_UPDATE_CHANGE_DOCS_TEMPLATE,
     DISCUSS_PROMPT_FILENAME: DISCUSS_PROMPT_TEMPLATE,
+    POPULATE_AGENTS_PROMPT_FILENAME: POPULATE_AGENTS_PROMPT_TEMPLATE,
 }
 
 
@@ -304,6 +342,25 @@ def find_workbench_marker(directory: Path) -> tuple[Path, str] | None:
             return (config_path, dir_name)
 
     return None
+
+
+def list_sibling_directories(root_path: Path) -> list[str]:
+    """Return sorted names of immediate child directories that are not bench directories.
+
+    Scans `root_path` for subdirectories, excluding those whose names are
+    in BENCH_DIR_NAMES (i.e., ".bench" and "bench").
+
+    Args:
+        root_path: The project root directory to scan.
+
+    Returns:
+        Sorted list of directory name strings.
+    """
+    return sorted(
+        entry.name
+        for entry in root_path.iterdir()
+        if entry.is_dir() and entry.name not in BENCH_DIR_NAMES
+    )
 
 
 def load_yaml_file(path: Path) -> dict[str, Any]:

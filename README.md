@@ -108,7 +108,7 @@ bench --install-completion
 # 1. Navigate to your project root (containing your git repos)
 cd ~/projects/my-project
 
-# 2. Initialize bench
+# 2. Initialize bench (auto-populates AGENTS.md by scanning your repos)
 bench init
 
 # 3. Add a source defining which repos and branches to work with
@@ -143,7 +143,7 @@ Bench follows a structured development workflow:
 
 ```
                     ┌─────────────┐
-                    │  bench init │  Initialize project
+                    │  bench init │  Initialize project + populate AGENTS.md
                     └──────┬──────┘
                            │
                     ┌──────▼──────┐
@@ -183,7 +183,7 @@ Running `bench` with no subcommand defaults to `bench status`.
 
 | Command | Mode | Description |
 |---|---|---|
-| `bench init` | UNINITIALIZED | Initialize a new bench project |
+| `bench init` | UNINITIALIZED | Initialize a new bench project and populate AGENTS.md |
 | `bench status` | Any | Display current mode, project root, workbench info, AI model |
 | `bench source add` | ROOT | Add a named source with repo-to-branch mappings |
 | `bench source list` | ROOT | List all sources |
@@ -203,20 +203,25 @@ Running `bench` with no subcommand defaults to `bench status`.
 
 ### bench init
 
-Initializes a new bench project in the current directory by creating the `.bench/` directory structure.
+Initializes a new bench project in the current directory by creating the `.bench/` directory structure and optionally populating `AGENTS.md` with AI-generated project-specific content.
 
 ```bash
-bench init
+bench init                          # full init with AGENTS.md population
+bench init --skip-agents-md         # create scaffold only, skip AI population
+bench init --model anthropic/claude-sonnet-4-20250514  # use a specific model for population
 ```
 
-No arguments or options.
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--skip-agents-md` | flag | `False` | Skip the AGENTS.md population step entirely |
+| `--model` | string | from config | Override the AI model used for AGENTS.md population (falls back to `models.task` in `base-config.yaml`) |
 
 **What it creates:**
 
 ```
 .bench/
   base-config.yaml           # Project config (sources, models, implementation flow template)
-  AGENTS.md                  # Project instructions template for the AI agent
+  AGENTS.md                  # Project instructions (populated by AI, or minimal placeholder)
   files/                     # Shared files directory
   prompts/                   # Shared prompt templates
     task-create-spec.md      # Interactive spec creation prompt
@@ -225,9 +230,19 @@ No arguments or options.
     task-do-impl.md          # Implementation execution prompt
     task-update-change-docs.md  # Change documentation prompt
     discuss.md               # Free-form discussion prompt
+    populate-agents.md       # AGENTS.md population prompt (user-editable)
   scripts/                   # Shared scripts directory
   workbench/                 # Workbench metadata directory
 ```
+
+**AGENTS.md population:**
+
+After the scaffold is created, bench automatically detects sibling directories in the project root (any directory that is not `.bench/` or `bench/`). If directories are found, it runs an AI agent (via `opencode run`) that scans those directories and writes structured content into `.bench/AGENTS.md`. The generated content includes a "Repositories Overview" with sections for each repository covering key files, structures, features, patterns, and conventions.
+
+The population step is designed to be resilient:
+- If no sibling directories are found, population is silently skipped and the file retains a minimal placeholder.
+- If `opencode` is not installed or the agent fails, a warning is displayed but `bench init` still succeeds. The `AGENTS.md` file will contain a minimal placeholder that you can edit manually.
+- The prompt used for population is saved to `.bench/prompts/populate-agents.md` and can be freely edited before re-running manually.
 
 **Validation errors:**
 
@@ -784,6 +799,7 @@ Prompt templates are markdown files in `bench/prompts/` within each workbench. T
 | `task-write-impl-docs.md` | `task implement` (phase 1) | Read spec, write `impl.md`, `notes.md`, `files.md` |
 | `task-do-impl.md` | `task implement` (phase 2) | Read spec + impl docs, implement the feature |
 | `task-update-change-docs.md` | `task implement` (phase 3) | Use `git diff` to update `CHANGELOG.md` and `README.md` |
+| `populate-agents.md` | `bench init` | AI prompt for scanning repos and populating `AGENTS.md` |
 | `discuss.md` | `discuss start` | Free-form conversation with summary generation |
 
 All prompt templates are freely editable. Paths within prompts are relative to the workbench directory.
@@ -792,7 +808,9 @@ All prompt templates are freely editable. Paths within prompts are relative to t
 
 Each workbench has an `AGENTS.md` file (copied from `.bench/AGENTS.md` at creation) that provides project-wide instructions to the AI agent. This file is referenced by all prompt templates and is read by the agent at the start of every session.
 
-The default template includes sections for sources, workbench guidelines, and coding conventions.
+During `bench init`, the `AGENTS.md` file is automatically populated by an AI agent that scans all sibling directories in the project root. The agent produces a structured "Repositories Overview" document with sections for each repository covering key files, structures, features, patterns, and conventions. This gives the AI agent immediate context about the entire project when working on tasks.
+
+If the auto-population step is skipped (via `--skip-agents-md`) or fails, the file contains a minimal placeholder that can be manually edited. The prompt used for population is stored at `.bench/prompts/populate-agents.md` and can be customized before re-running.
 
 ---
 
@@ -873,7 +891,7 @@ src/bench/
   service/
     __init__.py            # Re-exports public service functions
     mode_detection.py      # detect_mode()
-    init.py                # initialize_project()
+    init.py                # initialize_project(), populate_agents_md()
     git.py                 # get_git_status(), create_git_branch(), push_git_branch()
     opencode.py            # run_opencode_prompt()
     source.py              # add/list/update/remove_source()
