@@ -76,6 +76,29 @@ def display_workbench_retired(summary: dict[str, object]) -> None:
     console.print(f"  Preserved: [dim]{bench_dir}[/dim]")
 
 
+def display_workbench_deleted(summary: dict[str, object]) -> None:
+    """Display a success message after workbench deletion.
+
+    Args:
+        summary: Dict with keys: name, was_active, workspace_removed,
+                 scaffold_removed, branches_deleted.
+    """
+    name = summary["name"]
+    was_active = summary["was_active"]
+    workspace_removed = summary["workspace_removed"]
+    scaffold_removed = summary["scaffold_removed"]
+    branches_deleted: list[str] = summary.get("branches_deleted", [])  # type: ignore[assignment]
+
+    console.print(f'[bold green]Workbench "{name}" deleted successfully[/bold green]')
+    if was_active:
+        console.print(f"  Workspace removed: [dim]{workspace_removed}[/dim]")
+    console.print(f"  Scaffold removed: [dim]{scaffold_removed}[/dim]")
+    if branches_deleted:
+        console.print(f"  Branches deleted: [cyan]{', '.join(branches_deleted)}[/cyan]")
+    else:
+        console.print("  Branches deleted: [dim]none[/dim]")
+
+
 def display_workbench_list(workbenches: list[WorkbenchEntry]) -> None:
     """Display a table of workbenches or an empty-state message.
 

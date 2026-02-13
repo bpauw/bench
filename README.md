@@ -25,6 +25,7 @@ Bench manages git worktrees organized into **workbenches** -- isolated developme
     - [workbench create](#bench-workbench-create)
     - [workbench update](#bench-workbench-update)
     - [workbench retire](#bench-workbench-retire)
+    - [workbench delete](#bench-workbench-delete)
     - [workbench activate](#bench-workbench-activate)
     - [workbench list](#bench-workbench-list)
   - [bench task](#bench-task)
@@ -193,6 +194,7 @@ Running `bench` with no subcommand defaults to `bench status`.
 | `bench workbench create` | ROOT | Create a workbench from a source |
 | `bench workbench update` | ROOT / WORKBENCH | Add/remove repos from a workbench |
 | `bench workbench retire` | ROOT | Retire a workbench (preserves metadata) |
+| `bench workbench delete` | ROOT | Permanently delete a workbench and all its data |
 | `bench workbench activate` | ROOT | Reactivate a retired workbench |
 | `bench workbench list` | ROOT / WORKBENCH / WITHIN_ROOT | List all workbenches with status |
 | `bench task create` | WORKBENCH | Create a task with scaffold files |
@@ -453,6 +455,55 @@ Tab completion only suggests active workbench names. Already-retired workbenches
 | Deleted | Preserved |
 |---|---|
 | `workbench/<name>/` (workspace, symlinks, worktrees) | `.bench/workbench/<name>/` (all metadata, history, tasks) |
+
+#### bench workbench delete
+
+Permanently deletes a workbench -- removing the workspace directory (if active), scaffold data (`.bench/workbench/<name>/`), git branches from all source repos, and the config entry from `base-config.yaml`. This is the destructive counterpart to `retire` (which is a soft delete that preserves metadata). Works on both active and inactive workbenches.
+
+```bash
+bench workbench delete my-workbench          # with confirmation
+bench workbench delete my-workbench --yes    # skip confirmation
+bench workbench delete my-workbench -y       # short form
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | yes | Workbench name (active or inactive) |
+| `--yes` / `-y` | flag | no | Skip confirmation prompt |
+
+Tab completion suggests all workbench names (both active and inactive).
+
+**Confirmation prompt:** When `--yes` is not set, the command displays a confirmation warning that explicitly lists what will be permanently deleted: the workspace directory, the `.bench/workbench/<name>/` data, and the associated git branches. Answering "no" cancels the operation cleanly.
+
+**What happens during deletion:**
+
+1. If the workbench is **active**, the workspace directory (`workbench/<name>/`) is removed and git worktrees are pruned -- the same cleanup that `retire` performs.
+2. Git branches created for the workbench are deleted from each source repository (using safe delete `git branch -d`). If a branch has already been deleted or doesn't exist, it is silently skipped.
+3. The scaffold directory (`.bench/workbench/<name>/`) is permanently removed, including all metadata, history, tasks, prompts, and discussions.
+4. The workbench entry is removed from `base-config.yaml`.
+
+**Retire vs. Delete:**
+
+| | Retire | Delete |
+|---|---|---|
+| Workspace removed | Yes | Yes (if active) |
+| Git branches deleted | No | Yes |
+| Scaffold (`.bench/workbench/<name>/`) removed | No | Yes |
+| Config entry removed | No (status set to `inactive`) | Yes (entry deleted) |
+| Reversible | Yes (via `activate`) | No |
+| Works on inactive workbenches | No | Yes |
+
+**Output after deletion:**
+
+The command displays a summary showing the workbench name, whether the workspace was removed (if it was active), the scaffold directory that was removed, and which repos had their branches deleted.
+
+**Validation errors:**
+
+| Condition | Error |
+|---|---|
+| Workbench not found | `Workbench "name" not found. Available workbenches: ...` |
+| Not at project root | `The 'workbench delete' command can only be run from the project root directory.` |
+| Uninitialized directory | `This folder is uninitialized. Run 'bench init' to create a bench project first.` |
 
 #### bench workbench activate
 
@@ -927,7 +978,7 @@ src/bench/
     init.py                # bench init
     status.py              # bench status
     source.py              # bench source {add,list,update,remove}
-    workbench.py           # bench workbench {create,update,retire,activate,list}
+    workbench.py           # bench workbench {create,update,retire,delete,activate,list}
     task.py                # bench task {create,refine,implement,complete,list}
     discuss.py             # bench discuss {start,list}
   model/
@@ -948,7 +999,7 @@ src/bench/
     git.py                 # get_git_status(), create_git_branch(), push_git_branch()
     opencode.py            # run_opencode_prompt()
     source.py              # add/list/update/remove_source()
-    workbench.py           # create/update/retire/activate/list workbench functions
+    workbench.py           # create/update/retire/delete/activate/list workbench functions
     task.py                # create/complete/list/refine/implement task functions
     discuss.py             # start_discussion(), list_discussions()
     _validation.py         # parse_repo_arg(), validate_repo() (private helpers)

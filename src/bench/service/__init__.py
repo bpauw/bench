@@ -19,6 +19,7 @@ from bench.service.task import (
 from bench.service.workbench import (
     activate_workbench,
     create_workbench,
+    delete_workbench,
     list_workbenches,
     retire_workbench,
     update_workbench,
@@ -31,6 +32,7 @@ __all__ = [
     "complete_task",
     "create_task",
     "create_workbench",
+    "delete_workbench",
     "detect_mode",
     "get_git_status",
     "initialize_project",

@@ -424,6 +424,23 @@ def remove_workbench_workspace(workspace_path: Path) -> None:
     shutil.rmtree(workspace_path)
 
 
+def remove_workbench_scaffold(scaffold_path: Path) -> None:
+    """Remove the workbench scaffold directory tree.
+
+    Deletes <project-root>/.bench/workbench/<name> entirely.
+
+    Args:
+        scaffold_path: Path to the workbench scaffold directory.
+
+    Raises:
+        FileNotFoundError: If the directory does not exist.
+        OSError: If the directory cannot be removed.
+    """
+    if not scaffold_path.is_dir():
+        raise FileNotFoundError(f"Directory does not exist: {scaffold_path}")
+    shutil.rmtree(scaffold_path)
+
+
 def create_bench_scaffold(root_path: Path) -> list[str]:
     """Create the .bench directory structure for a new bench project.
 

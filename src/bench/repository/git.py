@@ -309,6 +309,22 @@ def branch_exists(branch_name: str, repo_path: Path) -> bool:
     return branch_name in branches
 
 
+def delete_branch(branch_name: str, repo_path: Path) -> None:
+    """Delete a local git branch.
+
+    Runs `git branch -d <branch_name>` in the given repo directory.
+
+    Args:
+        branch_name: Name of the branch to delete.
+        repo_path: Path to the git repository working directory.
+
+    Raises:
+        RuntimeError: If the git command fails (e.g., branch not found,
+                      unmerged changes).
+    """
+    _run_git(["branch", "-d", branch_name], repo_path)
+
+
 def _has_upstream(branch_name: str, repo_path: Path) -> bool:
     """Check if a branch has an upstream tracking branch configured.
 

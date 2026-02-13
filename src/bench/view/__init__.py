@@ -31,6 +31,7 @@ from bench.view.task import (
 from bench.view.workbench import (
     display_workbench_activated,
     display_workbench_created,
+    display_workbench_deleted,
     display_workbench_error,
     display_workbench_list,
     display_workbench_retired,
@@ -62,6 +63,7 @@ __all__ = [
     "display_task_refine_start",
     "display_workbench_activated",
     "display_workbench_created",
+    "display_workbench_deleted",
     "display_workbench_error",
     "display_workbench_list",
     "display_workbench_retired",

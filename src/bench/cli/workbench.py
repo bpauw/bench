@@ -11,6 +11,7 @@ from rich.console import Console
 from bench.service.workbench import (
     activate_workbench,
     create_workbench,
+    delete_workbench,
     list_workbenches,
     retire_workbench,
     update_workbench,
@@ -18,6 +19,7 @@ from bench.service.workbench import (
 from bench.view.workbench import (
     display_workbench_activated,
     display_workbench_created,
+    display_workbench_deleted,
     display_workbench_error,
     display_workbench_list,
     display_workbench_retired,
@@ -61,6 +63,21 @@ def _complete_active_workbench_name(incomplete: str) -> list[str]:
             w.name
             for w in context.base_config.workbenches
             if w.name.startswith(incomplete) and w.status == WorkbenchStatus.ACTIVE
+        ]
+    except Exception:
+        return []
+
+
+def _complete_workbench_name(incomplete: str) -> list[str]:
+    """Provide tab-completion for all workbench names (active and inactive)."""
+    try:
+        context = detect_mode(Path.cwd())
+        if context.base_config is None:
+            return []
+        return [
+            w.name
+            for w in context.base_config.workbenches
+            if w.name.startswith(incomplete)
         ]
     except Exception:
         return []
@@ -199,6 +216,47 @@ def workbench_retire(
 
 
 workbench_app.command("retire")(workbench_retire)
+
+
+def workbench_delete(
+    name: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the workbench to delete",
+            autocompletion=_complete_workbench_name,
+        ),
+    ],
+    yes: Annotated[
+        bool,
+        typer.Option(
+            "--yes",
+            "-y",
+            help="Skip confirmation prompt",
+        ),
+    ] = False,
+) -> None:
+    """Permanently delete a workbench, its data, and git branches."""
+    try:
+        if not yes:
+            typer.confirm(
+                f'Delete workbench "{name}"? This will permanently remove the '
+                f"workspace directory, .bench/workbench/{name}/ data, and "
+                f"associated git branches. This cannot be undone.",
+                abort=True,
+            )
+
+        summary = delete_workbench(name)
+        display_workbench_deleted(summary)
+    except typer.Abort:
+        _console = Console()
+        _console.print("[dim]Deletion cancelled.[/dim]")
+        raise typer.Exit(code=0)
+    except (ValueError, RuntimeError) as e:
+        display_workbench_error(str(e))
+        raise typer.Exit(code=1)
+
+
+workbench_app.command("delete")(workbench_delete)
 
 
 def workbench_activate(

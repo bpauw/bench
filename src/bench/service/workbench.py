@@ -8,8 +8,10 @@ from bench.repository import (
     branch_exists,
     create_workbench_scaffold,
     create_workbench_workspace,
+    delete_branch,
     load_yaml_file,
     prune_worktrees,
+    remove_workbench_scaffold,
     remove_workbench_workspace,
     remove_worktree,
     save_yaml_file,
@@ -489,6 +491,135 @@ def retire_workbench(workbench_name: str) -> dict[str, object]:
         "name": workbench_name,
         "repos_pruned": repos_pruned,
         "bench_dir_preserved": bench_dir_preserved,
+    }
+
+
+def delete_workbench(workbench_name: str) -> dict[str, object]:
+    """Permanently delete a workbench and all its data.
+
+    Removes the workspace directory (if active), scaffold data, git branches,
+    and the config entry from base-config.yaml. Works on both active and
+    inactive workbenches.
+
+    Args:
+        workbench_name: Name of the workbench to delete.
+
+    Returns:
+        A dict with summary info for the view layer:
+        {
+            "name": str,
+            "was_active": bool,
+            "workspace_removed": str | None,
+            "scaffold_removed": str,
+            "branches_deleted": list[str],
+        }
+
+    Raises:
+        RuntimeError: If mode is not ROOT or context fields missing.
+        ValueError: If workbench not found in config.
+    """
+    # Phase 1: Mode enforcement
+    context = detect_mode(Path.cwd())
+    if context.mode == BenchMode.UNINITIALIZED:
+        raise ValueError(
+            "This folder is uninitialized. "
+            "Run 'bench init' to create a bench project first."
+        )
+    if context.mode != BenchMode.ROOT:
+        raise RuntimeError(
+            "The 'workbench delete' command can only be run from the "
+            "project root directory."
+        )
+
+    # Phase 2: Assert context fields
+    assert context.root_path is not None
+    assert context.bench_dir_name is not None
+    assert context.base_config is not None
+
+    # Phase 3: Load base-config.yaml (raw dict for mutation)
+    config_path = context.root_path / context.bench_dir_name / BASE_CONFIG_FILENAME
+    data = load_yaml_file(config_path)
+
+    # Phase 4: Find workbench entry
+    workbench_index: int | None = None
+    workbench_entry: dict[str, object] | None = None
+    for i, w in enumerate(data.get("workbenches", [])):
+        if isinstance(w, dict) and w.get("name") == workbench_name:
+            workbench_index = i
+            workbench_entry = w
+            break
+
+    if workbench_entry is None or workbench_index is None:
+        existing_names = [
+            w["name"]
+            for w in data.get("workbenches", [])
+            if isinstance(w, dict) and "name" in w
+        ]
+        available = ", ".join(existing_names) if existing_names else "(none)"
+        raise ValueError(
+            f'Workbench "{workbench_name}" not found. '
+            f"Available workbenches: {available}"
+        )
+
+    was_active = workbench_entry.get("status") == "active"
+
+    # Phase 5: Load workbench-config.yaml
+    wb_config_path = (
+        context.root_path
+        / context.bench_dir_name
+        / "workbench"
+        / workbench_name
+        / "bench"
+        / "workbench-config.yaml"
+    )
+    wb_data = load_yaml_file(wb_config_path)
+    git_branch: str = wb_data.get("git-branch", workbench_name)
+    repos_list: list[dict[str, str]] = wb_data.get("repos", [])
+
+    # Phase 6: If ACTIVE, perform retire steps (remove workspace + prune worktrees)
+    workspace_removed: str | None = None
+    if was_active:
+        workspace_path = context.root_path / "workbench" / workbench_name
+        if workspace_path.is_dir():
+            remove_workbench_workspace(workspace_path)
+            workspace_removed = str(workspace_path)
+        for repo in repos_list:
+            repo_dir = repo.get("dir")
+            if repo_dir:
+                repo_path = context.root_path / repo_dir
+                if repo_path.is_dir():
+                    prune_worktrees(repo_path)
+
+    # Phase 7: Delete git branches
+    branches_deleted: list[str] = []
+    for repo in repos_list:
+        repo_dir = repo.get("dir")
+        if not repo_dir:
+            continue
+        repo_path = context.root_path / repo_dir
+        if not repo_path.is_dir():
+            continue
+        if branch_exists(git_branch, repo_path):
+            delete_branch(git_branch, repo_path)
+            branches_deleted.append(repo_dir)
+
+    # Phase 8: Remove scaffold directory
+    scaffold_path = (
+        context.root_path / context.bench_dir_name / "workbench" / workbench_name
+    )
+    remove_workbench_scaffold(scaffold_path)
+
+    # Phase 9: Remove entry from base-config.yaml
+    del data["workbenches"][workbench_index]
+    save_yaml_file(config_path, data)
+
+    # Phase 10: Return summary
+    return {
+        "name": workbench_name,
+        "was_active": was_active,
+        "workspace_removed": workspace_removed,
+        "scaffold_removed": str(scaffold_path),
+        "branches_deleted": branches_deleted,
     }
 
 

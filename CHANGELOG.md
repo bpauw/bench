@@ -1,10 +1,11 @@
 # Changelog
 
-## Version 0.4.0
+## Version 0.5.0
 
 ### New
 
 - Added `bench workbench list` command that displays all workbenches in a Rich table with name, source, git branch, and status columns. Active workbenches are shown first (in green), followed by inactive ones (dimmed). Works from any bench-aware directory.
+- Added `bench workbench delete` command that permanently removes a workbench -- its workspace directory, scaffold data (`.bench/workbench/<name>/`), git branches, and config entry. Works on both active and inactive workbenches. Includes a confirmation prompt with `--yes`/`-y` to skip.
 
 ### Updated
 
@@ -14,7 +15,7 @@
 
 ### Removed
 
-- Removed the unfiltered `_complete_workbench_name` autocompletion callback (replaced by status-aware variants)
+- Removed the unfiltered `_complete_workbench_name` autocompletion callback (replaced by status-aware variants), then re-added it for the new `workbench delete` command which needs to suggest all workbenches regardless of status
 
 ## Version 0.2.0
 
