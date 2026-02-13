@@ -244,6 +244,10 @@ When working on a task that targets specific repositories, concentrate your atte
 
 ## <Repository Name>
 
+### Key Commands
+
+List the most important commands for the development process. Focus on build, run, and clean commands.
+
 ### Key Files
 
 List the most important files and their purposes. Focus on entry points, configuration files, and core modules.
