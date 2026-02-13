@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from bench.model import BenchMode
+from bench.model import BenchMode, WorkbenchEntry
 from bench.model.source import SourceRepo
 from bench.repository import (
     BASE_CONFIG_FILENAME,
@@ -646,3 +646,26 @@ def activate_workbench(workbench_name: str) -> dict[str, object]:
         "git_branch": git_branch,
         "repos": repo_summaries,
     }
+
+
+def list_workbenches() -> list[WorkbenchEntry]:
+    """List all workbenches from the base config.
+
+    Returns:
+        A list of WorkbenchEntry models from the base config.
+
+    Raises:
+        ValueError: If mode is UNINITIALIZED.
+    """
+    # Phase 1: Mode enforcement
+    context = detect_mode(Path.cwd())
+
+    if context.mode == BenchMode.UNINITIALIZED:
+        raise ValueError(
+            "This folder is uninitialized. "
+            "Run 'bench init' to create a bench project first."
+        )
+
+    # Phase 2: Return workbenches from base config
+    assert context.base_config is not None
+    return context.base_config.workbenches

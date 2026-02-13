@@ -1,4 +1,7 @@
 from rich.console import Console
+from rich.table import Table
+
+from bench.model import WorkbenchEntry, WorkbenchStatus
 
 console = Console()
 
@@ -71,6 +74,54 @@ def display_workbench_retired(summary: dict[str, object]) -> None:
     console.print(f'[bold green]Workbench "{name}" retired successfully[/bold green]')
     console.print(f"  Repos pruned: [cyan]{repos_pruned}[/cyan]")
     console.print(f"  Preserved: [dim]{bench_dir}[/dim]")
+
+
+def display_workbench_list(workbenches: list[WorkbenchEntry]) -> None:
+    """Display a table of workbenches or an empty-state message.
+
+    Active workbenches are listed first (sorted by name), then inactive
+    workbenches (sorted by name).
+
+    Args:
+        workbenches: The list of WorkbenchEntry models to display.
+    """
+    if not workbenches:
+        console.print(
+            "[dim]No workbenches defined. Use 'bench workbench create' to create one.[/dim]"
+        )
+        return
+
+    table = Table()
+    table.add_column("Name")
+    table.add_column("Source")
+    table.add_column("Git Branch")
+    table.add_column("Status")
+
+    # Sort: active first (sorted by name), then inactive (sorted by name)
+    active = sorted(
+        [w for w in workbenches if w.status == WorkbenchStatus.ACTIVE],
+        key=lambda w: w.name,
+    )
+    inactive = sorted(
+        [w for w in workbenches if w.status == WorkbenchStatus.INACTIVE],
+        key=lambda w: w.name,
+    )
+    ordered = active + inactive
+
+    for entry in ordered:
+        if entry.status == WorkbenchStatus.ACTIVE:
+            status_str = "[green]active[/green]"
+        else:
+            status_str = "[dim]inactive[/dim]"
+
+        table.add_row(
+            entry.name,
+            entry.source,
+            entry.git_branch,
+            status_str,
+        )
+
+    console.print(table)
 
 
 def display_workbench_error(message: str) -> None:

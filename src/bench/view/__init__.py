@@ -32,6 +32,7 @@ from bench.view.workbench import (
     display_workbench_activated,
     display_workbench_created,
     display_workbench_error,
+    display_workbench_list,
     display_workbench_retired,
     display_workbench_updated,
 )
@@ -62,6 +63,7 @@ __all__ = [
     "display_workbench_activated",
     "display_workbench_created",
     "display_workbench_error",
+    "display_workbench_list",
     "display_workbench_retired",
     "display_workbench_updated",
 ]

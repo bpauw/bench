@@ -1,6 +1,10 @@
 # Changelog
 
-## Version 0.3.0
+## Version 0.4.0
+
+### New
+
+- Added `bench workbench list` command that displays all workbenches in a Rich table with name, source, git branch, and status columns. Active workbenches are shown first (in green), followed by inactive ones (dimmed). Works from any bench-aware directory.
 
 ### Updated
 

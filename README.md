@@ -26,6 +26,7 @@ Bench manages git worktrees organized into **workbenches** -- isolated developme
     - [workbench update](#bench-workbench-update)
     - [workbench retire](#bench-workbench-retire)
     - [workbench activate](#bench-workbench-activate)
+    - [workbench list](#bench-workbench-list)
   - [bench task](#bench-task)
     - [task create](#bench-task-create)
     - [task refine](#bench-task-refine)
@@ -193,6 +194,7 @@ Running `bench` with no subcommand defaults to `bench status`.
 | `bench workbench update` | ROOT / WORKBENCH | Add/remove repos from a workbench |
 | `bench workbench retire` | ROOT | Retire a workbench (preserves metadata) |
 | `bench workbench activate` | ROOT | Reactivate a retired workbench |
+| `bench workbench list` | ROOT / WORKBENCH / WITHIN_ROOT | List all workbenches with status |
 | `bench task create` | WORKBENCH | Create a task with scaffold files |
 | `bench task refine` | WORKBENCH | Interactive AI spec refinement |
 | `bench task implement` | WORKBENCH | Multi-phase automated AI implementation |
@@ -472,6 +474,47 @@ No confirmation needed -- activation is non-destructive. Tab completion only sug
 | Runs `git worktree prune` on each repo | Creates git worktrees for each repo |
 | Sets status to `inactive` | Sets status to `active` |
 | Preserves `.bench/workbench/<name>/` | Reads from `.bench/workbench/<name>/` |
+
+#### bench workbench list
+
+Lists all workbenches in the current bench project, displayed as a Rich table.
+
+```bash
+bench workbench list
+```
+
+This command takes no arguments or flags. It always shows all workbenches, grouped by status.
+
+**Table columns:**
+
+| Column | Description |
+|---|---|
+| Name | Workbench name |
+| Source | Source definition used to create the workbench |
+| Git Branch | The git branch used for worktrees |
+| Status | `active` (green) or `inactive` (dimmed) |
+
+**Ordering:** Active workbenches are listed first (sorted alphabetically by name), followed by inactive workbenches (also sorted alphabetically by name).
+
+**Example output:**
+
+```
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃ Name          ┃ Source    ┃ Git Branch    ┃ Status   ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ add-auth      │ my-source │ add-auth      │ active   │
+│ fix-api       │ my-source │ fix-api       │ active   │
+│ old-feature   │ my-source │ old-feature   │ inactive │
+└───────────────┴───────────┴───────────────┴──────────┘
+```
+
+**Empty state:** When no workbenches have been created yet, the command displays:
+
+```
+No workbenches defined. Use 'bench workbench create' to create one.
+```
+
+**Mode support:** Unlike most workbench commands (which require ROOT mode), `bench workbench list` works from any bench-aware directory -- ROOT, WORKBENCH, or WITHIN_ROOT. This makes it convenient to check the full list of workbenches regardless of where you are in the project tree. Running it from an uninitialized directory produces an error directing you to run `bench init` first.
 
 ---
 
@@ -884,7 +927,7 @@ src/bench/
     init.py                # bench init
     status.py              # bench status
     source.py              # bench source {add,list,update,remove}
-    workbench.py           # bench workbench {create,update,retire,activate}
+    workbench.py           # bench workbench {create,update,retire,activate,list}
     task.py                # bench task {create,refine,implement,complete,list}
     discuss.py             # bench discuss {start,list}
   model/
@@ -905,7 +948,7 @@ src/bench/
     git.py                 # get_git_status(), create_git_branch(), push_git_branch()
     opencode.py            # run_opencode_prompt()
     source.py              # add/list/update/remove_source()
-    workbench.py           # create/update/retire/activate_workbench()
+    workbench.py           # create/update/retire/activate/list workbench functions
     task.py                # create/complete/list/refine/implement task functions
     discuss.py             # start_discussion(), list_discussions()
     _validation.py         # parse_repo_arg(), validate_repo() (private helpers)

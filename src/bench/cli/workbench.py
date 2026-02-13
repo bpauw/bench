@@ -11,6 +11,7 @@ from rich.console import Console
 from bench.service.workbench import (
     activate_workbench,
     create_workbench,
+    list_workbenches,
     retire_workbench,
     update_workbench,
 )
@@ -18,6 +19,7 @@ from bench.view.workbench import (
     display_workbench_activated,
     display_workbench_created,
     display_workbench_error,
+    display_workbench_list,
     display_workbench_retired,
     display_workbench_updated,
 )
@@ -218,6 +220,19 @@ def workbench_activate(
 
 
 workbench_app.command("activate")(workbench_activate)
+
+
+def workbench_list() -> None:
+    """List all workbenches in the current bench project."""
+    try:
+        workbenches = list_workbenches()
+        display_workbench_list(workbenches)
+    except (ValueError, RuntimeError) as e:
+        display_workbench_error(str(e))
+        raise typer.Exit(code=1)
+
+
+workbench_app.command("list")(workbench_list)
 
 
 def register(app: typer.Typer) -> None:
