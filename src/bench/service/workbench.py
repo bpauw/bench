@@ -9,12 +9,20 @@ from bench.repository import (
     create_workbench_scaffold,
     create_workbench_workspace,
     delete_branch,
+    discover_scripts,
     load_yaml_file,
     prune_worktrees,
     remove_workbench_scaffold,
     remove_workbench_workspace,
     remove_worktree,
+    run_script,
     save_yaml_file,
+)
+from bench.view.workbench import (
+    display_script_completed,
+    display_script_failed,
+    display_script_not_executable,
+    display_script_running,
 )
 from bench.service._validation import parse_repo_arg, validate_repo
 from bench.service.mode_detection import detect_mode
@@ -190,6 +198,37 @@ def create_workbench(
     )
 
     save_yaml_file(config_path, data)
+
+    # Phase 11: Execute setup scripts
+    scripts_dir = context.root_path / "workbench" / workbench_name / "bench" / "scripts"
+    executable_scripts, non_executable_files = discover_scripts(scripts_dir)
+
+    for script_path in non_executable_files:
+        display_script_not_executable(script_path.name)
+
+    if executable_scripts:
+        workspace_dir = context.root_path / "workbench" / workbench_name
+        env_vars = {
+            "BENCH_WORKBENCH_NAME": workbench_name,
+            "BENCH_SOURCE_NAME": source_name,
+            "BENCH_GIT_BRANCH": git_branch,
+            "BENCH_PROJECT_ROOT": str(context.root_path),
+            "BENCH_WORKBENCH_DIR": str(workspace_dir),
+            "BENCH_SCAFFOLD_DIR": str(
+                context.root_path
+                / context.bench_dir_name
+                / "workbench"
+                / workbench_name
+            ),
+        }
+
+        for script_path in executable_scripts:
+            display_script_running(script_path.name)
+            exit_code = run_script(script_path, workspace_dir, env_vars)
+            if exit_code == 0:
+                display_script_completed(script_path.name)
+            else:
+                display_script_failed(script_path.name, exit_code)
 
     return {
         "name": workbench_name,

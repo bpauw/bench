@@ -29,6 +29,10 @@ from bench.view.task import (
     display_task_refine_start,
 )
 from bench.view.workbench import (
+    display_script_completed,
+    display_script_failed,
+    display_script_not_executable,
+    display_script_running,
     display_workbench_activated,
     display_workbench_created,
     display_workbench_deleted,
@@ -61,6 +65,10 @@ __all__ = [
     "display_task_implement_start",
     "display_task_list",
     "display_task_refine_start",
+    "display_script_completed",
+    "display_script_failed",
+    "display_script_not_executable",
+    "display_script_running",
     "display_workbench_activated",
     "display_workbench_created",
     "display_workbench_deleted",

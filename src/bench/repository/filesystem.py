@@ -1,4 +1,6 @@
+import os
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -654,6 +656,67 @@ def create_workbench_workspace(
     created.append(f"{rel_prefix}/{REPO_DIR_NAME}/")
 
     return created
+
+
+def discover_scripts(scripts_dir: Path) -> tuple[list[Path], list[Path]]:
+    """Discover executable scripts in a directory.
+
+    Scans top-level files (not subdirectories) in ``scripts_dir``, excluding
+    hidden files and ``.gitkeep``.  Files with the executable bit set are
+    returned as executable scripts; the rest are returned as non-executable
+    files (so the caller can warn about them).
+
+    Args:
+        scripts_dir: Path to the scripts directory to scan.
+
+    Returns:
+        A tuple of (executable_scripts, non_executable_files), both sorted
+        alphabetically by filename.
+    """
+    if not scripts_dir.is_dir():
+        return ([], [])
+
+    executable: list[Path] = []
+    non_executable: list[Path] = []
+
+    for entry in scripts_dir.iterdir():
+        if not entry.is_file():
+            continue
+        if entry.name.startswith(".") or entry.name == GITKEEP_FILENAME:
+            continue
+
+        if os.access(entry, os.X_OK):
+            executable.append(entry)
+        else:
+            non_executable.append(entry)
+
+    executable.sort(key=lambda p: p.name)
+    non_executable.sort(key=lambda p: p.name)
+
+    return (executable, non_executable)
+
+
+def run_script(script_path: Path, working_dir: Path, env_vars: dict[str, str]) -> int:
+    """Execute a single script with the given working directory and environment.
+
+    Runs the script as a subprocess, streaming stdout and stderr directly to
+    the terminal (no output capture).
+
+    Args:
+        script_path: Absolute path to the script to execute.
+        working_dir: Working directory for the subprocess.
+        env_vars: Extra environment variables merged on top of ``os.environ``.
+
+    Returns:
+        The exit code of the script process.
+    """
+    env = {**os.environ, **env_vars}
+    result = subprocess.run(
+        [str(script_path)],
+        cwd=working_dir,
+        env=env,
+    )
+    return result.returncode
 
 
 def create_task_scaffold(

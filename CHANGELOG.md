@@ -1,11 +1,14 @@
 # Changelog
 
+## Version 0.6.0
+
 ## Version 0.5.0
 
 ### New
 
 - Added `bench workbench list` command that displays all workbenches in a Rich table with name, source, git branch, and status columns. Active workbenches are shown first (in green), followed by inactive ones (dimmed). Works from any bench-aware directory.
 - Added `bench workbench delete` command that permanently removes a workbench -- its workspace directory, scaffold data (`.bench/workbench/<name>/`), git branches, and config entry. Works on both active and inactive workbenches. Includes a confirmation prompt with `--yes`/`-y` to skip.
+- Added automatic setup script execution as the final phase of `bench workbench create`. Executable scripts in the workbench's `bench/scripts/` directory (copied from `.bench/scripts/`) are discovered and run alphabetically after workspace provisioning. Scripts receive environment variables (`BENCH_WORKBENCH_NAME`, `BENCH_SOURCE_NAME`, `BENCH_GIT_BRANCH`, `BENCH_PROJECT_ROOT`, `BENCH_WORKBENCH_DIR`, `BENCH_SCAFFOLD_DIR`) and their output streams directly to the terminal. Non-executable scripts are warned about; failed scripts warn but do not block workbench creation.
 
 ### Updated
 

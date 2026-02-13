@@ -226,8 +226,8 @@ bench init --model anthropic/claude-sonnet-4-20250514  # use a specific model fo
 .bench/
   base-config.yaml           # Project config (sources, models, implementation flow template)
   AGENTS.md                  # Project instructions (populated by AI, or minimal placeholder)
-  files/                     # Shared files directory
-  prompts/                   # Shared prompt templates
+  files/                     # Shared files copied into each new workbench
+  prompts/                   # Shared prompt templates copied into each new workbench
     task-create-spec.md      # Interactive spec creation prompt
     task-refine-spec.md      # Spec refinement prompt
     task-write-impl-docs.md  # Implementation planning prompt
@@ -235,7 +235,7 @@ bench init --model anthropic/claude-sonnet-4-20250514  # use a specific model fo
     task-update-change-docs.md  # Change documentation prompt
     discuss.md               # Free-form discussion prompt
     populate-agents.md       # AGENTS.md population prompt (user-editable)
-  scripts/                   # Shared scripts directory
+  scripts/                   # Setup scripts auto-run during workbench creation (chmod +x required)
   workbench/                 # Workbench metadata directory
 ```
 
@@ -379,7 +379,7 @@ The real files live under `.bench/workbench/<name>/`:
     tasks/                         # Task folders
     files/                         # Copied from .bench/files/
     prompts/                       # Copied from .bench/prompts/
-    scripts/                       # Copied from .bench/scripts/
+    scripts/                       # Copied from .bench/scripts/ (auto-executed during creation)
 ```
 
 The workspace directory uses symlinks for portability:
@@ -395,6 +395,45 @@ workbench/<name>/
 ```
 
 For each repo in the source, a git worktree is created. If the branch already exists locally, it is checked out; otherwise a new branch is created from the source branch.
+
+**Setup script execution:**
+
+As the final step of workbench creation (Phase 11), bench automatically discovers and runs executable scripts from the workbench's `bench/scripts/` directory. These scripts are copied from `.bench/scripts/` during scaffold creation, so any scripts you place in `.bench/scripts/` will be available in every new workbench.
+
+Script discovery rules:
+- Only top-level files are scanned (subdirectories are ignored)
+- Hidden files (names starting with `.`) and `.gitkeep` files are excluded
+- Only files with the executable bit set (`chmod +x`) are executed
+- Non-executable files trigger a warning (you likely forgot `chmod +x`)
+- Scripts run in alphabetical order by filename for deterministic execution
+
+Each script runs with the **workbench workspace root** (`workbench/<name>/`) as its working directory, so scripts can access `repo/`, `bench/`, and `AGENTS.md` via the symlinked structure. The following environment variables are available to scripts (in addition to the inherited environment):
+
+| Variable | Value |
+|---|---|
+| `BENCH_WORKBENCH_NAME` | The workbench name |
+| `BENCH_SOURCE_NAME` | The source name used to create the workbench |
+| `BENCH_GIT_BRANCH` | The git branch name for the workbench |
+| `BENCH_PROJECT_ROOT` | Absolute path to the project root directory |
+| `BENCH_WORKBENCH_DIR` | Absolute path to the workbench workspace directory (`workbench/<name>/`) |
+| `BENCH_SCAFFOLD_DIR` | Absolute path to the workbench scaffold directory (`.bench/workbench/<name>/`) |
+
+Script output (stdout and stderr) streams directly to the terminal in real-time. If a script fails (non-zero exit code), a warning is displayed but the remaining scripts continue and the workbench is still considered successfully created. If no executable scripts are found, this phase completes silently.
+
+**Example:** To automatically install dependencies in every new workbench, create `.bench/scripts/01-install-deps.sh`:
+
+```bash
+#!/bin/bash
+# Runs after workbench creation
+for repo_dir in repo/*/; do
+    if [ -f "$repo_dir/package.json" ]; then
+        echo "Installing dependencies in $repo_dir..."
+        (cd "$repo_dir" && npm install)
+    fi
+done
+```
+
+Then make it executable: `chmod +x .bench/scripts/01-install-deps.sh`. The next `bench workbench create` will run it automatically.
 
 **Validation errors:**
 

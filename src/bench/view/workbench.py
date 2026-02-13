@@ -147,6 +147,32 @@ def display_workbench_list(workbenches: list[WorkbenchEntry]) -> None:
     console.print(table)
 
 
+def display_script_running(script_name: str) -> None:
+    """Display a message before running a script."""
+    console.print(f"  Running script [cyan]{script_name}[/cyan]...")
+
+
+def display_script_completed(script_name: str) -> None:
+    """Display a message after a script completes successfully."""
+    console.print(f"  Script [cyan]{script_name}[/cyan] completed")
+
+
+def display_script_failed(script_name: str, exit_code: int) -> None:
+    """Display a warning when a script fails."""
+    console.print(
+        f"  [bold yellow]Warning:[/bold yellow] Script [cyan]{script_name}[/cyan] "
+        f"failed (exit code {exit_code})"
+    )
+
+
+def display_script_not_executable(script_name: str) -> None:
+    """Display a warning when a script is not executable."""
+    console.print(
+        f"  [bold yellow]Warning:[/bold yellow] [cyan]{script_name}[/cyan] "
+        f"is not executable (skipping)"
+    )
+
+
 def display_workbench_error(message: str) -> None:
     """Display an error message for workbench operations.
 
