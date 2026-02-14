@@ -98,7 +98,7 @@ make install  # uv tool install --reinstall .
 
 After installation, the `bench` command is available on your PATH.
 
-To enable **tab completion** for shell commands, source names, workbench names, and task names:
+To enable **tab completion** for shell commands, source names, workbench names, task names, and discussion names:
 
 ```bash
 bench --install-completion
@@ -112,30 +112,36 @@ bench --install-completion
 # 1. Navigate to your project root (containing your git repos)
 cd ~/projects/my-project
 
-# 2. Initialize bench (auto-populates AGENTS.md by scanning your repos)
+# 2. Initialize bench
 bench init
 
-# 3. Add a source defining which repos and branches to work with
+# 3. Populate AGENTS.md with AI-generated project context
+bench populate agents
+
+# 4. Add a source defining which repos and branches to work with
 bench source add my-source \
   --add-repo service-repo:main \
   --add-repo client-repo:develop
 
-# 4. Create a workbench from that source
+# 5. Create a workbench from that source
 bench workbench create my-source my-workbench
 
-# 5. Navigate into the workbench
+# 6. Navigate into the workbench
 cd workbench/my-workbench
 
-# 6. Create a task (optionally with an interactive AI spec session)
-bench task create add-auth --interview
+# 7. Have a discussion to explore ideas (optional)
+bench discuss start
 
-# 7. Refine the spec if needed
-bench task refine add-auth
+# 8. Create a task, attaching the discussion for context
+bench task create add-auth --interview --add-discussion api-design
 
-# 8. Run the automated implementation pipeline
+# 9. Refine the spec if needed (can attach more discussions)
+bench task refine add-auth --add-discussion security-review
+
+# 10. Run the automated implementation pipeline
 bench task implement add-auth
 
-# 9. Mark the task as complete
+# 11. Mark the task as complete
 bench task complete add-auth
 ```
 
@@ -147,8 +153,12 @@ Bench follows a structured development workflow:
 
 ```
                     ┌─────────────┐
-                    │  bench init │  Initialize project + populate AGENTS.md
+                    │  bench init │  Initialize project scaffold
                     └──────┬──────┘
+                           │
+                 ┌─────────▼─────────┐
+                 │ populate agents   │  Generate AGENTS.md via AI
+                 └─────────┬─────────┘
                            │
                     ┌──────▼──────┐
                     │ source add  │  Define repo-to-branch mappings
@@ -158,26 +168,31 @@ Bench follows a structured development workflow:
                 │  workbench create   │  Create isolated dev environment
                 └──────────┬──────────┘
                            │
-             ┌─────────────▼─────────────┐
-             │       task create         │  Create task + optional AI interview
-             │    (--interview)          │
-             └─────────────┬─────────────┘
-                           │
-                   ┌───────▼───────┐
-                   │  task refine  │  Iterative AI spec refinement
-                   └───────┬───────┘
-                           │
-               ┌───────────▼───────────┐
-               │   task implement      │  Multi-phase AI implementation
-               │  (plan → build → doc) │
-               └───────────┬───────────┘
-                           │
-                  ┌────────▼────────┐
-                  │  task complete  │  Mark done
-                  └─────────────────┘
+    ┌──────────────────────▼──────────────────────┐
+    │                                             │
+    │  ┌───────────────┐    ┌─────────────────┐   │
+    │  │ discuss start │───▶│  task create    │   │  Discussions feed into tasks
+    │  │  (optional)   │    │ --add-discussion│   │  via --add-discussion
+    │  └───────────────┘    └────────┬────────┘   │
+    │                                │            │
+    │                        ┌───────▼───────┐    │
+    │                        │  task refine  │    │  Can also attach discussions
+    │                        │ --add-discuss.│    │  during refinement
+    │                        └───────┬───────┘    │
+    │                                │            │
+    └────────────────────────────────┼────────────┘
+                                     │
+                ┌────────────────────▼────────────────────┐
+                │          task implement                 │  Multi-phase AI implementation
+                │  (plan → build → doc, reads spec.md)   │  Discussion refs in spec.md
+                └────────────────────┬────────────────────┘
+                                     │
+                            ┌────────▼────────┐
+                            │  task complete  │  Mark done
+                            └─────────────────┘
 ```
 
-At any point during development, you can also start free-form **discussion** sessions with the AI agent using `bench discuss start`.
+At any point during development, you can start free-form **discussion** sessions with the AI agent using `bench discuss start`. Discussions can later be attached to tasks using the `--add-discussion` option on `task create` or `task refine`, giving the AI agent context from prior conversations when working on the task.
 
 ---
 
@@ -187,7 +202,7 @@ Running `bench` with no subcommand defaults to `bench status`.
 
 | Command | Mode | Description |
 |---|---|---|
-| `bench init` | UNINITIALIZED | Initialize a new bench project and populate AGENTS.md |
+| `bench init` | UNINITIALIZED | Initialize a new bench project |
 | `bench status` | Any | Display current mode, project root, workbench info, AI model |
 | `bench populate agents` | ROOT / WORKBENCH | (Re)generate AGENTS.md using an AI agent |
 | `bench source add` | ROOT | Add a named source with repo-to-branch mappings |
@@ -210,25 +225,20 @@ Running `bench` with no subcommand defaults to `bench status`.
 
 ### bench init
 
-Initializes a new bench project in the current directory by creating the `.bench/` directory structure and optionally populating `AGENTS.md` with AI-generated project-specific content.
+Initializes a new bench project in the current directory by creating the `.bench/` directory structure with configuration, prompt templates, and scaffold files.
 
 ```bash
-bench init                          # full init with AGENTS.md population
-bench init --skip-agents-md         # create scaffold only, skip AI population
-bench init --model anthropic/claude-sonnet-4-20250514  # use a specific model for population
+bench init
 ```
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--skip-agents-md` | flag | `False` | Skip the AGENTS.md population step entirely |
-| `--model` | string | from config | Override the AI model used for AGENTS.md population (falls back to `models.task` in `base-config.yaml`) |
+This command takes no options. To populate `AGENTS.md` with AI-generated project context after initialization, use `bench populate agents`.
 
 **What it creates:**
 
 ```
 .bench/
   base-config.yaml           # Project config (sources, models, implementation flow template)
-  AGENTS.md                  # Project instructions (populated by AI, or minimal placeholder)
+  AGENTS.md                  # Project instructions (minimal placeholder, populate with 'bench populate agents')
   files/                     # Shared files copied into each new workbench
   prompts/                   # Shared prompt templates copied into each new workbench
     task-create-spec.md      # Interactive spec creation prompt
@@ -242,14 +252,7 @@ bench init --model anthropic/claude-sonnet-4-20250514  # use a specific model fo
   workbench/                 # Workbench metadata directory
 ```
 
-**AGENTS.md population:**
-
-After the scaffold is created, bench automatically detects sibling directories in the project root (any directory that is not `.bench/` or `bench/`). If directories are found, it runs an AI agent (via `opencode run`) that scans those directories and writes structured content into `.bench/AGENTS.md`. The generated content includes a "Repositories Overview" with sections for each repository covering key files, structures, features, patterns, and conventions.
-
-The population step is designed to be resilient:
-- If no sibling directories are found, population is silently skipped and the file retains a minimal placeholder.
-- If `opencode` is not installed or the agent fails, a warning is displayed but `bench init` still succeeds. The `AGENTS.md` file will contain a minimal placeholder that you can edit manually or regenerate later with `bench populate agents`.
-- The prompt used for population is saved to `.bench/prompts/populate-agents.md` and can be freely edited before re-running with `bench populate agents`.
+After initialization, run `bench populate agents` to have an AI agent scan your repositories and write structured project context into `AGENTS.md`. This is a separate step so you can customize the population prompt (`.bench/prompts/populate-agents.md`) before running it, or skip it entirely if you prefer to write `AGENTS.md` manually.
 
 **Validation errors:**
 
@@ -278,7 +281,7 @@ Regenerate AI-produced files. The `populate` command group provides subcommands 
 
 #### bench populate agents
 
-(Re)generates the `AGENTS.md` file by running an AI agent that scans relevant directories and writes structured project context. This is the same operation that `bench init` performs automatically, but available as a standalone command so you can re-run it at any time -- for example, after adding new repositories, restructuring code, or editing the population prompt template.
+(Re)generates the `AGENTS.md` file by running an AI agent that scans relevant directories and writes structured project context. Run this after `bench init` to populate the initial `AGENTS.md`, or re-run it at any time -- for example, after adding new repositories, restructuring code, or editing the population prompt template.
 
 ```bash
 bench populate agents                          # use default model from config, scan all repos
@@ -683,12 +686,15 @@ Creates a new task with a dated folder and scaffold files.
 ```bash
 bench task create add-auth                  # create task scaffold
 bench task create add-auth --interview      # create + launch interactive AI spec session
+bench task create add-auth --add-discussion api-design  # attach a discussion for context
+bench task create add-auth --interview --add-discussion api-design --add-discussion security-review
 ```
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `name` | positional | yes | Task name (must be unique within the workbench) |
 | `--interview` | flag | no | Launch an interactive AI session to build the spec |
+| `--add-discussion` | string (repeatable) | no | Name of an existing discussion to attach to the task. Can be used multiple times to attach several discussions. |
 
 **What it creates:**
 
@@ -710,21 +716,74 @@ completed: null
 
 **`--interview` flag:** After creating the scaffold, reads the `task-create-spec.md` prompt template, substitutes `{{TASK}}` with the full task folder name (e.g., `20260208 - add-auth`), and launches opencode interactively. The AI agent engages in a back-and-forth conversation to build a complete specification document in `spec.md`.
 
+**`--add-discussion` option:** Attaches one or more existing discussion files to the task. The value is the discussion **name** -- the title portion of the filename (e.g., `api-design`, not `20260210 - api-design.md`). Tab completion is supported for discussion names.
+
+When discussions are attached:
+
+1. Discussion references are injected into `spec.md` between the `# Spec` heading and `## Introduction`, so the AI agent (and humans) can see which discussions informed the task:
+
+   ```markdown
+   # Spec
+
+   make sure to read these discussions:
+   discussion: ./bench/discussions/20260210 - api-design.md
+   discussion: ./bench/discussions/20260213 - security-review.md
+
+   ## Introduction
+   ...
+   ```
+
+2. If `--interview` is also used, the discussion references are included in the prompt sent to the AI agent, giving it full context from the prior conversations.
+
+Even without `--interview`, the discussion references are written to `spec.md`. This means they are available when you later run `bench task refine` or `bench task implement`, since those commands read `spec.md` directly.
+
+**Validation errors:**
+
+| Condition | Error |
+|---|---|
+| Discussion name not found | `Discussion "name" not found. Available discussions: ...` |
+
 #### bench task refine
 
 Refines an existing task's specification through an interactive AI session.
 
 ```bash
 bench task refine add-auth
+bench task refine add-auth --add-discussion new-insights
+bench task refine add-auth --add-discussion feedback --add-discussion edge-cases
 ```
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `name` | positional | yes | Task name |
+| `--add-discussion` | string (repeatable) | no | Name of an existing discussion to attach to the task. Can be used multiple times. |
 
-Reads `task-refine-spec.md`, substitutes `{{TASK}}` and `{{REPOSITORIES}}`, and launches opencode interactively. The AI reviews the existing spec for completeness and asks clarifying questions to improve it.
+Reads `task-refine-spec.md`, substitutes `{{TASK}}`, `{{REPOSITORIES}}`, and `{{DISCUSSIONS}}`, and launches opencode interactively. The AI reviews the existing spec for completeness and asks clarifying questions to improve it.
 
 Requires `spec.md` to exist in the task folder.
+
+**`--add-discussion` option:** Works the same as in `task create` -- attaches discussion files to provide additional context during refinement. Tab completion is supported for discussion names.
+
+When discussions are attached during refinement:
+
+1. The discussion references are **appended** to the existing discussion block in `spec.md`. If the spec already has discussion references from a prior `task create` or `task refine`, the new ones are added after the existing ones. No deduplication is performed -- the same discussion can be attached multiple times across different refinement sessions.
+
+2. The discussion context is also included in the prompt sent to the AI agent for the refinement session.
+
+**Example:** If `spec.md` already has a discussion reference from task creation:
+
+```markdown
+make sure to read these discussions:
+discussion: ./bench/discussions/20260210 - api-design.md
+```
+
+Running `bench task refine add-auth --add-discussion security-review` appends:
+
+```markdown
+make sure to read these discussions:
+discussion: ./bench/discussions/20260210 - api-design.md
+discussion: ./bench/discussions/20260213 - security-review.md
+```
 
 #### bench task implement
 
@@ -842,6 +901,18 @@ bench discuss start
 ```
 
 The AI agent engages in a free-form conversation. When the conversation ends, the agent writes a dated summary markdown file to `bench/discussions/YYYYMMDD - <title>.md` capturing the main topics, decisions, action items, and reasoning discussed.
+
+**Discussion name uniqueness:** The AI agent is informed of all existing discussion names and instructed to choose a unique title for the new discussion. This ensures that discussion names can be reliably used as identifiers when attaching discussions to tasks via `--add-discussion`.
+
+**Connecting discussions to tasks:** After a discussion, you can attach it to a task to give the AI agent context from the conversation:
+
+```bash
+# Attach when creating a new task
+bench task create my-task --add-discussion api-design
+
+# Or attach during refinement of an existing task
+bench task refine my-task --add-discussion api-design
+```
 
 #### bench discuss list
 
@@ -981,12 +1052,15 @@ You can add, remove, or reorder steps. Each step runs opencode in headless mode 
 
 ### Prompt Templates
 
-Prompt templates are markdown files in `bench/prompts/` within each workbench. They contain two placeholders substituted at runtime:
+Prompt templates are markdown files in `bench/prompts/` within each workbench. They contain placeholders that are substituted at runtime:
 
-| Placeholder | Replaced with |
-|---|---|
-| `{{TASK}}` | Full task folder name (e.g., `20260208 - add-auth`) |
-| `{{REPOSITORIES}}` | A `<repositories>` block listing all repo directories from the workbench config |
+| Placeholder | Replaced with | Used in |
+|---|---|---|
+| `{{TASK}}` | Full task folder name (e.g., `20260208 - add-auth`) | Task prompts |
+| `{{REPOSITORIES}}` | A `<repositories>` block listing all repo directories from the workbench config | Task and discussion prompts |
+| `{{DISCUSSIONS}}` | Discussion reference block (when `--add-discussion` is used), or empty string | `task-create-spec.md`, `task-refine-spec.md` |
+| `{{DIRECTORIES}}` | List of directory paths to scan | `populate-agents.md` |
+| `{{EXISTING_DISCUSSIONS}}` | List of existing discussion names (for uniqueness enforcement) | `discuss.md` |
 
 **Rendered `{{REPOSITORIES}}` example:**
 
@@ -997,6 +1071,16 @@ Prompt templates are markdown files in `bench/prompts/` within each workbench. T
 </repositories>
 ```
 
+**Rendered `{{DISCUSSIONS}}` example (when discussions are attached):**
+
+```
+make sure to read these discussions:
+discussion: ./bench/discussions/20260210 - api-design.md
+discussion: ./bench/discussions/20260213 - security-review.md
+```
+
+When no discussions are attached, `{{DISCUSSIONS}}` is replaced with an empty string.
+
 **Seed prompt templates created by `bench init`:**
 
 | File | Used by | Purpose |
@@ -1006,8 +1090,10 @@ Prompt templates are markdown files in `bench/prompts/` within each workbench. T
 | `task-write-impl-docs.md` | `task implement` (phase 1) | Read spec, write `impl.md`, `notes.md`, `files.md` |
 | `task-do-impl.md` | `task implement` (phase 2) | Read spec + impl docs, implement the feature |
 | `task-update-change-docs.md` | `task implement` (phase 3) | Use `git diff` to update `CHANGELOG.md` and `README.md` |
-| `populate-agents.md` | `bench init`, `bench populate agents` | AI prompt for scanning repos and populating `AGENTS.md` |
+| `populate-agents.md` | `bench populate agents` | AI prompt for scanning repos and populating `AGENTS.md` |
 | `discuss.md` | `discuss start` | Free-form conversation with summary generation |
+
+Note: The implementation phase prompts (`task-write-impl-docs.md`, `task-do-impl.md`, `task-update-change-docs.md`) do **not** have a `{{DISCUSSIONS}}` placeholder. Those phases read `spec.md` directly, which already contains the discussion references injected during task creation or refinement.
 
 All prompt templates are freely editable. Paths within prompts are relative to the workbench directory.
 
@@ -1015,15 +1101,16 @@ All prompt templates are freely editable. Paths within prompts are relative to t
 
 Each workbench has an `AGENTS.md` file (copied from `.bench/AGENTS.md` at creation) that provides project-wide instructions to the AI agent. This file is referenced by all prompt templates and is read by the agent at the start of every session.
 
-During `bench init`, the `AGENTS.md` file is automatically populated by an AI agent that scans all sibling directories in the project root. The agent produces a structured "Repositories Overview" document with sections for each repository covering key commands, key files, structures, features, patterns, and conventions. This gives the AI agent immediate context about the entire project when working on tasks.
+After running `bench init`, the `AGENTS.md` file contains a minimal placeholder. To populate it with AI-generated project context, run `bench populate agents`. The agent scans all sibling directories in the project root and produces a structured "Repositories Overview" document with sections for each repository covering key commands, key files, structures, features, patterns, and conventions. This gives the AI agent immediate context about the entire project when working on tasks.
 
-If the auto-population step is skipped (via `--skip-agents-md`) or fails, the file contains a minimal placeholder that can be manually edited. The prompt used for population is stored at `.bench/prompts/populate-agents.md` and can be customized before re-running.
+The prompt used for population is stored at `.bench/prompts/populate-agents.md` and can be customized before running. If you prefer to write `AGENTS.md` manually, you can skip the population step entirely.
 
-To regenerate `AGENTS.md` at any time (e.g., after adding repos or restructuring code), use the standalone command:
+To regenerate `AGENTS.md` at any time (e.g., after adding repos or restructuring code), use:
 
 ```bash
 bench populate agents                   # from project root or workbench
 bench populate agents --model <model>   # with model override
+bench populate agents --repo <name>     # scan specific repos only
 ```
 
 When run from a workbench directory, the command scans the `repo/` subdirectories and updates the workbench's own `AGENTS.md`, using the workbench-local prompt template (which can be customized independently of the root template).

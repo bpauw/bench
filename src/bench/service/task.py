@@ -6,19 +6,25 @@ from bench.model.mode import BenchMode
 from bench.model.task import TaskConfig, TaskEntry, TaskFilter
 from bench.repository.filesystem import (
     BENCH_SUBDIR_NAME,
+    DISCUSSIONS_DIR_NAME,
+    DISCUSSIONS_PLACEHOLDER,
     PROMPTS_DIR_NAME,
     REPOSITORIES_PLACEHOLDER,
+    SPEC_MD_FILENAME,
     TASK_CREATE_SPEC_FILENAME,
     TASK_PLACEHOLDER,
     TASK_REFINE_SPEC_FILENAME,
     TASKS_DIR_NAME,
+    build_discussion_block,
     create_task_scaffold,
     find_task_folder,
+    inject_discussions_into_spec,
     list_task_entries,
     list_task_names,
     load_task_yaml,
     read_prompt_file,
     render_repositories_block,
+    resolve_discussion_paths,
     save_task_yaml,
     task_file_exists_and_nonempty,
     task_spec_exists,
@@ -31,6 +37,7 @@ def _substitute_prompt_placeholders(
     raw_prompt: str,
     task_folder_name: str,
     workbench_config: WorkbenchConfig,
+    discussion_block: str = "",
 ) -> str:
     """Replace all template placeholders in a prompt string.
 
@@ -38,6 +45,7 @@ def _substitute_prompt_placeholders(
         raw_prompt: The raw prompt template text.
         task_folder_name: Value for the {{TASK}} placeholder.
         workbench_config: Workbench config providing repos for {{REPOSITORIES}}.
+        discussion_block: Value for the {{DISCUSSIONS}} placeholder.
 
     Returns:
         The prompt text with all placeholders resolved.
@@ -46,16 +54,19 @@ def _substitute_prompt_placeholders(
     repo_dirs = [r.dir for r in workbench_config.repos]
     repos_block = render_repositories_block(repo_dirs)
     text = text.replace(REPOSITORIES_PLACEHOLDER, repos_block)
+    text = text.replace(DISCUSSIONS_PLACEHOLDER, discussion_block)
     return text
 
 
 def create_task(
     task_name: str,
+    discussion_names: list[str] | None = None,
 ) -> dict[str, object]:
     """Create a new task in the current workbench.
 
     Args:
         task_name: The name of the task to create.
+        discussion_names: Optional list of discussion names to attach to the task.
 
     Returns:
         A dict with summary info for the view layer:
@@ -99,6 +110,13 @@ def create_task(
 
     # Phase 5: Create the task scaffold
     created_paths = create_task_scaffold(tasks_dir, task_folder_name, task_name)
+
+    # Phase 5b: Inject discussion references into spec.md if provided
+    if discussion_names:
+        discussions_dir = context.cwd / BENCH_SUBDIR_NAME / DISCUSSIONS_DIR_NAME
+        discussion_paths = resolve_discussion_paths(discussions_dir, discussion_names)
+        spec_path = tasks_dir / task_folder_name / SPEC_MD_FILENAME
+        inject_discussions_into_spec(spec_path, discussion_paths)
 
     # Phase 6: Return summary
     return {
@@ -179,14 +197,17 @@ def complete_task(task_name: str) -> dict[str, object]:
 
 def run_task_interview(
     task_folder_name: str,
+    discussion_names: list[str] | None = None,
 ) -> int:
     """Launch an interactive opencode interview for a task's spec.
 
     Reads the task-create-spec.md prompt template, substitutes the
-    {{TASK}} and {{REPOSITORIES}} placeholders, and runs opencode interactively.
+    {{TASK}}, {{REPOSITORIES}}, and {{DISCUSSIONS}} placeholders, and runs
+    opencode interactively.
 
     Args:
         task_folder_name: The full task folder name (e.g., "20260208 - add-auth").
+        discussion_names: Optional list of discussion names for prompt context.
 
     Returns:
         The exit code from the opencode process.
@@ -212,6 +233,13 @@ def run_task_interview(
     assert context.base_config is not None
     assert context.workbench_config is not None
 
+    # Build discussion block for prompt substitution
+    discussion_block = ""
+    if discussion_names:
+        discussions_dir = context.cwd / BENCH_SUBDIR_NAME / DISCUSSIONS_DIR_NAME
+        discussion_paths = resolve_discussion_paths(discussions_dir, discussion_names)
+        discussion_block = build_discussion_block(discussion_paths)
+
     # Build the prompt file path
     prompt_path = (
         context.cwd / BENCH_SUBDIR_NAME / PROMPTS_DIR_NAME / TASK_CREATE_SPEC_FILENAME
@@ -220,7 +248,7 @@ def run_task_interview(
     # Read and substitute the prompt template
     raw_prompt = read_prompt_file(prompt_path)
     prompt_text = _substitute_prompt_placeholders(
-        raw_prompt, task_folder_name, context.workbench_config
+        raw_prompt, task_folder_name, context.workbench_config, discussion_block
     )
 
     # Get the model
@@ -271,14 +299,19 @@ def resolve_task(task_name: str) -> dict[str, str]:
     return {"name": task_name, "folder_name": folder_name}
 
 
-def refine_task(task_folder_name: str) -> int:
+def refine_task(
+    task_folder_name: str,
+    discussion_names: list[str] | None = None,
+) -> int:
     """Launch an interactive opencode session to refine a task's spec.
 
     Reads the task-refine-spec.md prompt template, substitutes the
-    {{TASK}} and {{REPOSITORIES}} placeholders, and runs opencode interactively.
+    {{TASK}}, {{REPOSITORIES}}, and {{DISCUSSIONS}} placeholders, and runs
+    opencode interactively.
 
     Args:
         task_folder_name: The full task folder name (e.g., "20260208 - add-auth").
+        discussion_names: Optional list of discussion names to attach and inject.
 
     Returns:
         The exit code from the opencode process.
@@ -304,6 +337,18 @@ def refine_task(task_folder_name: str) -> int:
     assert context.base_config is not None
     assert context.workbench_config is not None
 
+    # Validate and inject discussion references if provided
+    discussion_block = ""
+    if discussion_names:
+        discussions_dir = context.cwd / BENCH_SUBDIR_NAME / DISCUSSIONS_DIR_NAME
+        discussion_paths = resolve_discussion_paths(discussions_dir, discussion_names)
+        # Inject into spec.md (append to existing block or create new one)
+        tasks_dir = context.cwd / BENCH_SUBDIR_NAME / TASKS_DIR_NAME
+        spec_path = tasks_dir / task_folder_name / SPEC_MD_FILENAME
+        inject_discussions_into_spec(spec_path, discussion_paths)
+        # Build discussion block for prompt substitution
+        discussion_block = build_discussion_block(discussion_paths)
+
     # Build the prompt file path
     prompt_path = (
         context.cwd / BENCH_SUBDIR_NAME / PROMPTS_DIR_NAME / TASK_REFINE_SPEC_FILENAME
@@ -312,7 +357,7 @@ def refine_task(task_folder_name: str) -> int:
     # Read and substitute the prompt template
     raw_prompt = read_prompt_file(prompt_path)
     prompt_text = _substitute_prompt_placeholders(
-        raw_prompt, task_folder_name, context.workbench_config
+        raw_prompt, task_folder_name, context.workbench_config, discussion_block
     )
 
     # Get the model

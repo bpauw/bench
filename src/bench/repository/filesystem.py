@@ -40,6 +40,8 @@ TASK_PLACEHOLDER: str = "{{TASK}}"
 REPOSITORIES_PLACEHOLDER: str = "{{REPOSITORIES}}"
 POPULATE_AGENTS_PROMPT_FILENAME: str = "populate-agents.md"
 DIRECTORIES_PLACEHOLDER: str = "{{DIRECTORIES}}"
+DISCUSSIONS_PLACEHOLDER: str = "{{DISCUSSIONS}}"
+EXISTING_DISCUSSIONS_PLACEHOLDER: str = "{{EXISTING_DISCUSSIONS}}"
 
 SPEC_TEMPLATE: str = """\
 # Spec
@@ -75,6 +77,8 @@ task-spec: {task-dir}/spec.md
 
 {{REPOSITORIES}}
 
+{{DISCUSSIONS}}
+
 <spec-template>
 
 # Spec
@@ -104,6 +108,8 @@ task-dir: ./bench/tasks/{{TASK}}
 task-spec: {task-dir}/spec.md
 
 {{REPOSITORIES}}
+
+{{DISCUSSIONS}}
 
 Tasks:
 
@@ -206,6 +212,9 @@ DISCUSS_PROMPT_TEMPLATE: str = """\
 discussions-dir: ./bench/discussions
 
 {{REPOSITORIES}}
+
+Existing discussion names (the new discussion title MUST be different from all of these):
+{{EXISTING_DISCUSSIONS}}
 
 You are having a free-form discussion with the user. Talk with the user about whatever they want to discuss. Be helpful, thorough, and engage in back-and-forth conversation.
 
@@ -1033,3 +1042,110 @@ def render_repositories_block(repo_dirs: list[str]) -> str:
     if inner:
         return f"<repositories>\n{inner}\n</repositories>"
     return "<repositories>\n</repositories>"
+
+
+def resolve_discussion_paths(
+    discussions_dir: Path,
+    discussion_names: list[str],
+) -> list[str]:
+    """Resolve discussion names to their relative file paths.
+
+    Cross-references the given names against existing discussion files and
+    returns the resolved relative paths.
+
+    Args:
+        discussions_dir: Absolute path to the discussions directory.
+        discussion_names: List of discussion name strings to resolve.
+
+    Returns:
+        A list of relative path strings (e.g., ``./bench/discussions/20260210 - api-chat.md``).
+
+    Raises:
+        ValueError: If any discussion name is not found.
+    """
+    raw_entries = list_discussion_files(discussions_dir)
+    lookup: dict[str, str] = {entry["name"]: entry["filename"] for entry in raw_entries}
+
+    paths: list[str] = []
+    for name in discussion_names:
+        if name not in lookup:
+            available = ", ".join(sorted(lookup.keys()))
+            raise ValueError(
+                f'Discussion "{name}" not found. Available discussions: {available}'
+            )
+        paths.append(f"./bench/discussions/{lookup[name]}")
+
+    return paths
+
+
+def build_discussion_block(discussion_paths: list[str]) -> str:
+    """Build the discussion block text from resolved discussion paths.
+
+    Args:
+        discussion_paths: List of resolved relative discussion file paths.
+
+    Returns:
+        The formatted discussion block text, or empty string if the list is empty.
+    """
+    if not discussion_paths:
+        return ""
+    lines = ["make sure to read these discussions:"]
+    for path in discussion_paths:
+        lines.append(f"discussion: {path}")
+    return "\n".join(lines)
+
+
+def inject_discussions_into_spec(
+    spec_path: Path,
+    discussion_paths: list[str],
+) -> None:
+    """Inject discussion references into a spec.md file.
+
+    If the spec already contains a discussion block (detected by presence of
+    ``make sure to read these discussions:``), the new references are appended
+    after the last existing ``discussion:`` line. Otherwise, a new block is
+    created between the ``# Spec`` heading and ``## Introduction``.
+
+    Args:
+        spec_path: Absolute path to the spec.md file.
+        discussion_paths: List of resolved relative discussion file paths.
+
+    Raises:
+        OSError: If the file cannot be read or written.
+    """
+    content = spec_path.read_text()
+    new_discussion_lines = [f"discussion: {p}" for p in discussion_paths]
+
+    if "make sure to read these discussions:" in content:
+        # Append to existing discussion block
+        lines = content.splitlines(keepends=True)
+        last_discussion_idx = -1
+        for i, line in enumerate(lines):
+            if line.rstrip().startswith("discussion: "):
+                last_discussion_idx = i
+        if last_discussion_idx >= 0:
+            insert_lines = [dl + "\n" for dl in new_discussion_lines]
+            for j, insert_line in enumerate(insert_lines):
+                lines.insert(last_discussion_idx + 1 + j, insert_line)
+            content = "".join(lines)
+    else:
+        # Create new discussion block between # Spec and ## Introduction
+        lines = content.splitlines(keepends=True)
+        spec_idx = -1
+        intro_idx = -1
+        for i, line in enumerate(lines):
+            if line.rstrip() == "# Spec":
+                spec_idx = i
+            if line.rstrip() == "## Introduction":
+                intro_idx = i
+        if spec_idx >= 0 and intro_idx >= 0:
+            block_lines = ["make sure to read these discussions:\n"]
+            for dl in new_discussion_lines:
+                block_lines.append(dl + "\n")
+            block_lines.append("\n")
+            # Replace the blank line(s) between # Spec and ## Introduction
+            # with the discussion block
+            lines = lines[: spec_idx + 1] + ["\n"] + block_lines + lines[intro_idx:]
+            content = "".join(lines)
+
+    spec_path.write_text(content)

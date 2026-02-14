@@ -7,6 +7,7 @@ from bench.repository.filesystem import (
     BENCH_SUBDIR_NAME,
     DISCUSS_PROMPT_FILENAME,
     DISCUSSIONS_DIR_NAME,
+    EXISTING_DISCUSSIONS_PLACEHOLDER,
     PROMPTS_DIR_NAME,
     REPOSITORIES_PLACEHOLDER,
     list_discussion_files,
@@ -57,6 +58,17 @@ def start_discussion() -> int:
     repo_dirs = [r.dir for r in context.workbench_config.repos]
     repos_block = render_repositories_block(repo_dirs)
     prompt_text = raw_prompt.replace(REPOSITORIES_PLACEHOLDER, repos_block)
+
+    # Substitute existing discussion names for uniqueness enforcement
+    discussions_dir = context.cwd / BENCH_SUBDIR_NAME / DISCUSSIONS_DIR_NAME
+    existing_entries = list_discussion_files(discussions_dir)
+    if existing_entries:
+        existing_names_text = "\n".join(f"- {e['name']}" for e in existing_entries)
+    else:
+        existing_names_text = "(none)"
+    prompt_text = prompt_text.replace(
+        EXISTING_DISCUSSIONS_PLACEHOLDER, existing_names_text
+    )
 
     # Get the model
     model = context.base_config.models.discuss

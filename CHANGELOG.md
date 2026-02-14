@@ -1,5 +1,12 @@
 # Changelog
 
+## Verion 0.7.0
+
+### New
+
+- Added `--add-discussion` option to `bench task create` and `bench task refine` that attaches existing discussion files to a task, giving the AI agent context from prior conversations when creating or refining specs
+- Added discussion name uniqueness enforcement to `bench discuss start` -- the AI agent is now informed of existing discussion names and instructed to choose a different title
+
 ## Version 0.6.0
 
 ### New
@@ -9,10 +16,17 @@
 
 ### Updated
 
+- `bench init` simplified to scaffold creation only -- AGENTS.md population is now handled exclusively by `bench populate agents`
+- Task prompt templates (`task-create-spec.md`, `task-refine-spec.md`) now support a `{{DISCUSSIONS}}` placeholder for injecting discussion context
+- Discussion references are injected into `spec.md` between `# Spec` and `## Introduction`, making them available to all downstream implementation phases without template changes
 - Refactored `populate_agents_md()` from `service/init.py` into a standalone `service/populate.py` module, generalized to support both ROOT and WORKBENCH modes
 - `bench init` now imports the population logic from the new `service/populate.py` module (behavior unchanged)
 - `bench populate agents` now accepts `--repo` option (repeatable) to selectively scan specific repositories instead of all discovered directories
 - Added `list_repo_directories()` repository function for scanning workbench `repo/` contents in WORKBENCH mode
+
+### Removed
+
+- Removed `--skip-agents-md` and `--model` options from `bench init` (use `bench populate agents` instead)
 
 ## Version 0.5.0
 

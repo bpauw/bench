@@ -41,6 +41,17 @@ def _complete_task_name(incomplete: str) -> list[str]:
         return []
 
 
+def _complete_discussion_name(incomplete: str) -> list[str]:
+    """Provide tab-completion for discussion names."""
+    try:
+        from bench.service.discuss import list_discussions
+
+        entries = list_discussions()
+        return [e.name for e in entries if e.name.startswith(incomplete)]
+    except Exception:
+        return []
+
+
 def task_create(
     name: Annotated[str, typer.Argument(help="Name of the task to create")],
     interview: Annotated[
@@ -50,14 +61,22 @@ def task_create(
             help="Launch an interactive opencode session to populate the spec",
         ),
     ] = False,
+    add_discussion: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--add-discussion",
+            help="Name of an existing discussion to attach to the task",
+            autocompletion=_complete_discussion_name,
+        ),
+    ] = None,
 ) -> None:
     """Create a new task in the current workbench."""
     try:
-        summary = create_task(name)
+        summary = create_task(name, discussion_names=add_discussion)
         display_task_created(summary)
         if interview:
             folder_name = str(summary["folder_name"])
-            run_task_interview(folder_name)
+            run_task_interview(folder_name, discussion_names=add_discussion)
     except (ValueError, RuntimeError) as e:
         display_task_error(str(e))
         raise typer.Exit(code=1)
@@ -74,12 +93,22 @@ def task_refine(
             autocompletion=_complete_task_name,
         ),
     ],
+    add_discussion: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--add-discussion",
+            help="Name of an existing discussion to attach to the task",
+            autocompletion=_complete_discussion_name,
+        ),
+    ] = None,
 ) -> None:
     """Refine an existing task's specification via an interactive AI session."""
     try:
         summary = resolve_task(name)
         display_task_refine_start(name, str(summary["folder_name"]))
-        exit_code = refine_task(str(summary["folder_name"]))
+        exit_code = refine_task(
+            str(summary["folder_name"]), discussion_names=add_discussion
+        )
         if exit_code != 0:
             display_task_error(f"opencode exited with code {exit_code}")
             raise typer.Exit(code=exit_code)
