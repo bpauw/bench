@@ -171,7 +171,7 @@ task-notes: {task-dir}/notes.md
 Tasks:
 
 - Within each repo:
-    - Use git diff OR git diff HEAD~1 to discover changes
+    - Use git diff to discover uncommitted changes
     - If CHANGELOG.md exists:
         - Update CHANGELOG.md with a summary of all changes that have been made
         - Keep the summary high level and not too granular
@@ -179,6 +179,16 @@ Tasks:
         - Comprehensively update README.md so that it incorporates all of the changes that have been made
         - Focus on adding a lot of detail to user interactions with the program
         - Keep technical details high level
+
+Version Management:
+
+- Within each repo, search for a project definition file that defines the current version of this repo:
+    1. Read the current version from this file
+    2. Increment the minor version by 1 (e.g., 0.7.0 -> 0.8.0) -- always increment minor, never patch or major
+    3. Use the new version number as the CHANGELOG.md heading (e.g., `## Version 0.8.0`)
+    4. Update the `version` field in the project definition file to match the new version
+    5. Never reuse an existing version number from CHANGELOG.md
+    6. Always add the new version at the top of the changelog (below the `# Changelog` heading), above all existing version entries
 
 Notes:
 

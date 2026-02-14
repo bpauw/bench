@@ -245,7 +245,7 @@ This command takes no options. To populate `AGENTS.md` with AI-generated project
     task-refine-spec.md      # Spec refinement prompt
     task-write-impl-docs.md  # Implementation planning prompt
     task-do-impl.md          # Implementation execution prompt
-    task-update-change-docs.md  # Change documentation prompt
+    task-update-change-docs.md  # Change documentation and version management prompt
     discuss.md               # Free-form discussion prompt
     populate-agents.md       # AGENTS.md population prompt (user-editable)
   scripts/                   # Setup scripts auto-run during workbench creation (chmod +x required)
@@ -839,6 +839,21 @@ Each phase:
 
 If any phase fails, execution stops immediately.
 
+**Phase 3 -- Updating change docs:**
+
+The "Updating change docs" phase performs two main activities in each repository:
+
+1. **Change documentation:** The AI agent runs `git diff` to discover uncommitted changes in each repo and updates `CHANGELOG.md` (high-level summary of changes) and `README.md` (comprehensive documentation update focused on user interactions) accordingly.
+
+2. **Automatic version management:** For repos that have a `pyproject.toml`, the agent automatically manages version numbers:
+   - Reads the current version from `pyproject.toml`
+   - Increments the **minor** version by 1 (e.g., `0.7.0` -> `0.8.0`) -- always minor, never patch or major
+   - Uses the new version as the `CHANGELOG.md` heading (e.g., `## Version 0.8.0`)
+   - Updates the `version` field in `pyproject.toml` to match
+   - Ensures version numbers are never reused (always adds the new entry at the top of the changelog, below the `# Changelog` heading)
+
+The changelog follows a structured template with `### New`, `### Updated`, `### Fixed`, and `### Removed` subsections under each version heading.
+
 **Output during execution:**
 
 ```
@@ -1136,7 +1151,7 @@ When no discussions are attached, `{{DISCUSSIONS}}` is replaced with an empty st
 | `task-refine-spec.md` | `task refine` | Review spec for completeness, ask clarifying questions |
 | `task-write-impl-docs.md` | `task implement` (phase 1) | Read spec, write `impl.md`, `notes.md`, `files.md` |
 | `task-do-impl.md` | `task implement` (phase 2) | Read spec + impl docs, implement the feature |
-| `task-update-change-docs.md` | `task implement` (phase 3) | Use `git diff` to update `CHANGELOG.md` and `README.md` |
+| `task-update-change-docs.md` | `task implement` (phase 3) | Use `git diff` to update `CHANGELOG.md` and `README.md`; auto-manage version numbers in `pyproject.toml` |
 | `populate-agents.md` | `bench populate agents` | AI prompt for scanning repos and populating `AGENTS.md` |
 | `discuss.md` | `discuss start` | Free-form conversation with summary generation |
 

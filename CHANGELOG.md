@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 0.8.0
+
+### Updated
+
+- Improved the change-docs prompt template to use `git diff` for discovering uncommitted changes instead of the ambiguous `git diff OR git diff HEAD~1`
+- Added automatic version management to the change-docs implementation phase -- the AI agent now reads the current version from `pyproject.toml`, increments the minor version, updates both `pyproject.toml` and `CHANGELOG.md` with the new version number, and ensures version numbers are never reused
+
 ## Version 0.7.0
 
 ### New
