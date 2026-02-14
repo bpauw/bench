@@ -241,6 +241,7 @@ This command takes no options. To populate `AGENTS.md` with AI-generated project
 .bench/
   base-config.yaml           # Project config (sources, models, implementation flow template)
   AGENTS.md                  # Project instructions (minimal placeholder, populate with 'bench populate agents')
+  discussions/               # Shared discussions copied into each new workbench
   files/                     # Shared files copied into each new workbench
   prompts/                   # Shared prompt templates copied into each new workbench
     task-create-spec.md      # Interactive spec creation prompt
@@ -253,6 +254,8 @@ This command takes no options. To populate `AGENTS.md` with AI-generated project
   scripts/                   # Setup scripts auto-run during workbench creation (chmod +x required)
   workbench/                 # Workbench metadata directory
 ```
+
+The `discussions/` directory at the project root (`.bench/discussions/`) serves as a shared template for new workbenches. Any discussion files you place here will be automatically copied into every new workbench created with `bench workbench create`. This follows the same pattern as `files/`, `prompts/`, and `scripts/` -- all four directories are initialized at the project root during `bench init` and then copied into each workbench via `shutil.copytree()`. The `bench discuss start` command continues to write discussion summaries to the per-workbench `bench/discussions/` directory.
 
 After initialization, run `bench populate agents` to have an AI agent scan your repositories and write structured project context into `AGENTS.md`. This is a separate step so you can customize the population prompt (`.bench/prompts/populate-agents.md`) before running it, or skip it entirely if you prefer to write `AGENTS.md` manually.
 
@@ -505,7 +508,7 @@ The real files live under `.bench/workbench/<name>/`:
   bench/
     workbench-config.yaml          # Workbench config (name, source, branch, repos, flow)
     history.md                     # Empty history log
-    discussions/                   # Discussion summaries
+    discussions/                   # Copied from .bench/discussions/
     tasks/                         # Task folders
     files/                         # Copied from .bench/files/
     prompts/                       # Copied from .bench/prompts/

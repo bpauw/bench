@@ -1,5 +1,15 @@
 # Changelog
 
+## Version 0.10.0
+
+### New
+
+- Added `.bench/discussions/` directory to the project scaffold created by `bench init`, making discussions follow the same lifecycle as `files/`, `prompts/`, and `scripts/`
+
+### Updated
+
+- Workbench creation now copies `discussions/` from the root `.bench/discussions/` directory instead of creating it from scratch, so shared discussion files placed in `.bench/discussions/` are automatically inherited by new workbenches
+
 ## Version 0.9.0
 
 ### New

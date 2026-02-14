@@ -483,6 +483,7 @@ def create_bench_scaffold(root_path: Path) -> list[str]:
     Creates:
         - .bench/
         - .bench/base-config.yaml (with empty sources)
+        - .bench/discussions/ (with .gitkeep)
         - .bench/files/ (with .gitkeep)
         - .bench/prompts/ (with .gitkeep)
         - .bench/scripts/ (with .gitkeep)
@@ -525,6 +526,7 @@ def create_bench_scaffold(root_path: Path) -> list[str]:
 
     # Create subdirectories with .gitkeep files
     for subdir_name in [
+        DISCUSSIONS_DIR_NAME,
         FILES_DIR_NAME,
         PROMPTS_DIR_NAME,
         SCRIPTS_DIR_NAME,
@@ -567,7 +569,7 @@ def create_workbench_scaffold(
         - <bench_dir>/workbench/<name>/bench/
         - <bench_dir>/workbench/<name>/bench/workbench-config.yaml
         - <bench_dir>/workbench/<name>/bench/history.md
-        - <bench_dir>/workbench/<name>/bench/discussions/ (with .gitkeep)
+        - <bench_dir>/workbench/<name>/bench/discussions/ (copied from <bench_dir>/discussions/)
         - <bench_dir>/workbench/<name>/bench/tasks/ (with .gitkeep)
         - <bench_dir>/workbench/<name>/bench/files/ (copied from <bench_dir>/files/)
         - <bench_dir>/workbench/<name>/bench/prompts/ (copied from <bench_dir>/prompts/)
@@ -613,20 +615,19 @@ def create_workbench_scaffold(
     (wb_bench_dir / HISTORY_MD_FILENAME).write_text("")
     created.append(f"{rel_prefix}/{BENCH_SUBDIR_NAME}/{HISTORY_MD_FILENAME}")
 
-    # 6. Create discussions/ with .gitkeep
-    discussions_dir = wb_bench_dir / DISCUSSIONS_DIR_NAME
-    discussions_dir.mkdir()
-    (discussions_dir / GITKEEP_FILENAME).touch()
-    created.append(f"{rel_prefix}/{BENCH_SUBDIR_NAME}/{DISCUSSIONS_DIR_NAME}/")
-
-    # 7. Create tasks/ with .gitkeep
+    # 6. Create tasks/ with .gitkeep
     tasks_dir = wb_bench_dir / TASKS_DIR_NAME
     tasks_dir.mkdir()
     (tasks_dir / GITKEEP_FILENAME).touch()
     created.append(f"{rel_prefix}/{BENCH_SUBDIR_NAME}/{TASKS_DIR_NAME}/")
 
-    # 8-10. Copy files/, prompts/, scripts/ from bench dir
-    for subdir_name in [FILES_DIR_NAME, PROMPTS_DIR_NAME, SCRIPTS_DIR_NAME]:
+    # 7-10. Copy discussions/, files/, prompts/, scripts/ from bench dir
+    for subdir_name in [
+        DISCUSSIONS_DIR_NAME,
+        FILES_DIR_NAME,
+        PROMPTS_DIR_NAME,
+        SCRIPTS_DIR_NAME,
+    ]:
         src_dir = bench_dir / subdir_name
         dst_dir = wb_bench_dir / subdir_name
         shutil.copytree(src_dir, dst_dir)
