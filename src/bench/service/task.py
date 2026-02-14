@@ -38,6 +38,7 @@ def _substitute_prompt_placeholders(
     task_folder_name: str,
     workbench_config: WorkbenchConfig,
     discussion_block: str = "",
+    task_repos: list[str] | None = None,
 ) -> str:
     """Replace all template placeholders in a prompt string.
 
@@ -46,12 +47,18 @@ def _substitute_prompt_placeholders(
         task_folder_name: Value for the {{TASK}} placeholder.
         workbench_config: Workbench config providing repos for {{REPOSITORIES}}.
         discussion_block: Value for the {{DISCUSSIONS}} placeholder.
+        task_repos: Optional list of repo dir names to filter to. When non-empty,
+            only repos whose .dir is in this list are included. When empty/None,
+            all repos are included.
 
     Returns:
         The prompt text with all placeholders resolved.
     """
     text = raw_prompt.replace(TASK_PLACEHOLDER, task_folder_name)
-    repo_dirs = [r.dir for r in workbench_config.repos]
+    if task_repos:
+        repo_dirs = [r.dir for r in workbench_config.repos if r.dir in task_repos]
+    else:
+        repo_dirs = [r.dir for r in workbench_config.repos]
     repos_block = render_repositories_block(repo_dirs)
     text = text.replace(REPOSITORIES_PLACEHOLDER, repos_block)
     text = text.replace(DISCUSSIONS_PLACEHOLDER, discussion_block)
@@ -61,6 +68,7 @@ def _substitute_prompt_placeholders(
 def create_task(
     task_name: str,
     discussion_names: list[str] | None = None,
+    only_repos: list[str] | None = None,
 ) -> dict[str, object]:
     """Create a new task in the current workbench.
 
@@ -95,6 +103,19 @@ def create_task(
     assert context.root_path is not None
     assert context.bench_dir_name is not None
     assert context.base_config is not None
+    assert context.workbench_config is not None
+
+    # Phase 1b: Validate --only-repo values against workbench config
+    validated_repos: list[str] | None = None
+    if only_repos:
+        available_dirs = [r.dir for r in context.workbench_config.repos]
+        invalid = [r for r in only_repos if r not in available_dirs]
+        if invalid:
+            raise ValueError(
+                f"Unknown repo(s): {', '.join(invalid)}. "
+                f"Available repos: {', '.join(available_dirs)}"
+            )
+        validated_repos = only_repos
 
     # Phase 2: Resolve the tasks directory path
     tasks_dir = context.cwd / BENCH_SUBDIR_NAME / TASKS_DIR_NAME
@@ -109,7 +130,9 @@ def create_task(
     task_folder_name = f"{date_str} - {task_name}"
 
     # Phase 5: Create the task scaffold
-    created_paths = create_task_scaffold(tasks_dir, task_folder_name, task_name)
+    created_paths = create_task_scaffold(
+        tasks_dir, task_folder_name, task_name, repos=validated_repos
+    )
 
     # Phase 5b: Inject discussion references into spec.md if provided
     if discussion_names:
@@ -233,6 +256,12 @@ def run_task_interview(
     assert context.base_config is not None
     assert context.workbench_config is not None
 
+    # Load task repos for prompt filtering
+    tasks_dir = context.cwd / BENCH_SUBDIR_NAME / TASKS_DIR_NAME
+    task_folder = tasks_dir / task_folder_name
+    raw_task_data = load_task_yaml(task_folder)
+    task_repos = raw_task_data.get("repos", [])
+
     # Build discussion block for prompt substitution
     discussion_block = ""
     if discussion_names:
@@ -248,7 +277,11 @@ def run_task_interview(
     # Read and substitute the prompt template
     raw_prompt = read_prompt_file(prompt_path)
     prompt_text = _substitute_prompt_placeholders(
-        raw_prompt, task_folder_name, context.workbench_config, discussion_block
+        raw_prompt,
+        task_folder_name,
+        context.workbench_config,
+        discussion_block,
+        task_repos=task_repos or None,
     )
 
     # Get the model
@@ -337,6 +370,12 @@ def refine_task(
     assert context.base_config is not None
     assert context.workbench_config is not None
 
+    # Load task repos for prompt filtering
+    tasks_dir_for_repos = context.cwd / BENCH_SUBDIR_NAME / TASKS_DIR_NAME
+    task_folder_for_repos = tasks_dir_for_repos / task_folder_name
+    raw_task_data = load_task_yaml(task_folder_for_repos)
+    task_repos = raw_task_data.get("repos", [])
+
     # Validate and inject discussion references if provided
     discussion_block = ""
     if discussion_names:
@@ -357,7 +396,11 @@ def refine_task(
     # Read and substitute the prompt template
     raw_prompt = read_prompt_file(prompt_path)
     prompt_text = _substitute_prompt_placeholders(
-        raw_prompt, task_folder_name, context.workbench_config, discussion_block
+        raw_prompt,
+        task_folder_name,
+        context.workbench_config,
+        discussion_block,
+        task_repos=task_repos or None,
     )
 
     # Get the model
@@ -411,6 +454,7 @@ def list_tasks(task_filter: TaskFilter) -> list[TaskEntry]:
                 has_spec=raw["has_spec"],
                 has_impl=raw["has_impl"],
                 has_files=raw["has_files"],
+                repos=raw["repos"],
             )
         )
 
@@ -529,13 +573,22 @@ def run_task_phase(task_folder_name: str, phase: ImplementationStep) -> int:
     assert context.base_config is not None
     assert context.workbench_config is not None
 
+    # Load task repos for prompt filtering
+    tasks_dir = context.cwd / BENCH_SUBDIR_NAME / TASKS_DIR_NAME
+    task_folder = tasks_dir / task_folder_name
+    raw_task_data = load_task_yaml(task_folder)
+    task_repos = raw_task_data.get("repos", [])
+
     # Build the prompt file path
     prompt_path = context.cwd / BENCH_SUBDIR_NAME / PROMPTS_DIR_NAME / phase.prompt
 
     # Read and substitute the prompt template
     raw_prompt = read_prompt_file(prompt_path)
     prompt_text = _substitute_prompt_placeholders(
-        raw_prompt, task_folder_name, context.workbench_config
+        raw_prompt,
+        task_folder_name,
+        context.workbench_config,
+        task_repos=task_repos or None,
     )
 
     # Get the model

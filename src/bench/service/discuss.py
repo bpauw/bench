@@ -18,17 +18,22 @@ from bench.repository.opencode import run_prompt_interactive
 from bench.service.mode_detection import detect_mode
 
 
-def start_discussion() -> int:
+def start_discussion(only_repos: list[str] | None = None) -> int:
     """Launch an interactive opencode discussion session.
 
     Reads the discuss.md prompt template, substitutes the
     {{REPOSITORIES}} placeholder, and runs opencode interactively.
 
+    Args:
+        only_repos: Optional list of repo dir names to scope the discussion to.
+            When non-empty, only those repos are included in the prompt.
+            This is ephemeral and not persisted.
+
     Returns:
         The exit code from the opencode process.
 
     Raises:
-        ValueError: If mode is not WORKBENCH.
+        ValueError: If mode is not WORKBENCH, or if any repo name is invalid.
         RuntimeError: If opencode is not installed.
         FileNotFoundError: If the prompt template is missing.
     """
@@ -48,6 +53,16 @@ def start_discussion() -> int:
     assert context.base_config is not None
     assert context.workbench_config is not None
 
+    # Validate --only-repo values against workbench config
+    if only_repos:
+        available_dirs = [r.dir for r in context.workbench_config.repos]
+        invalid = [r for r in only_repos if r not in available_dirs]
+        if invalid:
+            raise ValueError(
+                f"Unknown repo(s): {', '.join(invalid)}. "
+                f"Available repos: {', '.join(available_dirs)}"
+            )
+
     # Build the prompt file path
     prompt_path = (
         context.cwd / BENCH_SUBDIR_NAME / PROMPTS_DIR_NAME / DISCUSS_PROMPT_FILENAME
@@ -55,7 +70,12 @@ def start_discussion() -> int:
 
     # Read and substitute the prompt template
     raw_prompt = read_prompt_file(prompt_path)
-    repo_dirs = [r.dir for r in context.workbench_config.repos]
+    if only_repos:
+        repo_dirs = [
+            r.dir for r in context.workbench_config.repos if r.dir in only_repos
+        ]
+    else:
+        repo_dirs = [r.dir for r in context.workbench_config.repos]
     repos_block = render_repositories_block(repo_dirs)
     prompt_text = raw_prompt.replace(REPOSITORIES_PLACEHOLDER, repos_block)
 

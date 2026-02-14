@@ -140,12 +140,14 @@ def display_task_list(tasks: list[TaskEntry], task_filter: TaskFilter) -> None:
     table.add_column("Name")
     table.add_column("Created")
     table.add_column("Completed")
+    table.add_column("Repos")
     table.add_column("Spec")
     table.add_column("Impl")
     table.add_column("Files")
 
     for entry in tasks:
         completed_str = entry.completed if entry.completed is not None else ""
+        repos_str = ", ".join(entry.repos) if entry.repos else "[dim]all[/dim]"
         spec_str = "[green]yes[/green]" if entry.has_spec else "[dim]-[/dim]"
         impl_str = "[green]yes[/green]" if entry.has_impl else "[dim]-[/dim]"
         files_str = "[green]yes[/green]" if entry.has_files else "[dim]-[/dim]"
@@ -154,6 +156,7 @@ def display_task_list(tasks: list[TaskEntry], task_filter: TaskFilter) -> None:
             entry.name,
             entry.created_date.isoformat(),
             completed_str,
+            repos_str,
             spec_str,
             impl_str,
             files_str,

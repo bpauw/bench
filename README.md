@@ -98,7 +98,7 @@ make install  # uv tool install --reinstall .
 
 After installation, the `bench` command is available on your PATH.
 
-To enable **tab completion** for shell commands, source names, workbench names, task names, and discussion names:
+To enable **tab completion** for shell commands, source names, workbench names, task names, discussion names, and repo names:
 
 ```bash
 bench --install-completion
@@ -132,13 +132,13 @@ cd workbench/my-workbench
 # 7. Have a discussion to explore ideas (optional)
 bench discuss start
 
-# 8. Create a task, attaching the discussion for context
-bench task create add-auth --interview --add-discussion api-design
+# 8. Create a task scoped to specific repos, attaching the discussion for context
+bench task create add-auth --interview --only-repo service-repo --add-discussion api-design
 
 # 9. Refine the spec if needed (can attach more discussions)
 bench task refine add-auth --add-discussion security-review
 
-# 10. Run the automated implementation pipeline
+# 10. Run the automated implementation pipeline (automatically scoped to task repos)
 bench task implement add-auth
 
 # 11. Mark the task as complete
@@ -686,14 +686,17 @@ Creates a new task with a dated folder and scaffold files.
 ```bash
 bench task create add-auth                  # create task scaffold
 bench task create add-auth --interview      # create + launch interactive AI spec session
+bench task create add-auth --only-repo service-repo  # scope task to a specific repo
+bench task create add-auth --only-repo repo1 --only-repo repo2  # scope to multiple repos
 bench task create add-auth --add-discussion api-design  # attach a discussion for context
-bench task create add-auth --interview --add-discussion api-design --add-discussion security-review
+bench task create add-auth --interview --only-repo service-repo --add-discussion api-design
 ```
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `name` | positional | yes | Task name (must be unique within the workbench) |
 | `--interview` | flag | no | Launch an interactive AI session to build the spec |
+| `--only-repo` | string (repeatable) | no | Scope this task to specific repositories. The value is a repo directory name from the workbench config (e.g., `service-repo`). Can be used multiple times. The filter is persisted in `task.yaml` and automatically applied to all subsequent operations (refine, implement). |
 | `--add-discussion` | string (repeatable) | no | Name of an existing discussion to attach to the task. Can be used multiple times to attach several discussions. |
 
 **What it creates:**
@@ -712,6 +715,16 @@ bench/tasks/YYYYMMDD - <name>/
 ```yaml
 name: add-auth
 completed: null
+repos: []
+```
+
+When `--only-repo` is used, the `repos` field stores the specified repo directory names:
+
+```yaml
+name: add-auth
+completed: null
+repos:
+  - service-repo
 ```
 
 **`--interview` flag:** After creating the scaffold, reads the `task-create-spec.md` prompt template, substitutes `{{TASK}}` with the full task folder name (e.g., `20260208 - add-auth`), and launches opencode interactively. The AI agent engages in a back-and-forth conversation to build a complete specification document in `spec.md`.
@@ -737,10 +750,23 @@ When discussions are attached:
 
 Even without `--interview`, the discussion references are written to `spec.md`. This means they are available when you later run `bench task refine` or `bench task implement`, since those commands read `spec.md` directly.
 
+**`--only-repo` option:** Scopes the task to specific repositories. When specified, only the listed repos are included in the `<repositories>` block of AI prompts. This applies to all task operations that generate prompts -- interview (if `--interview` is also used), refine, and implement.
+
+The repo filter is **persisted** in `task.yaml` under the `repos` field. This means you only need to specify `--only-repo` once at task creation time. All subsequent operations (`bench task refine`, `bench task implement`) automatically read the repo filter from `task.yaml` and scope their prompts accordingly. Tab completion is supported for repo names.
+
+When `--only-repo` is not specified (or the `repos` list is empty in `task.yaml`), all workbench repos are included in prompts -- preserving the default behavior.
+
+| `task.yaml` repos | Prompt behavior |
+|---|---|
+| `[]` (empty/default) | All workbench repos included in `<repositories>` block |
+| `["service-repo"]` | Only `./repo/service-repo` in `<repositories>` block |
+| `["service-repo", "client-repo"]` | Only those repos in `<repositories>` block |
+
 **Validation errors:**
 
 | Condition | Error |
 |---|---|
+| Unknown repo name in `--only-repo` | `Unknown repo(s): <names>. Available repos: <list>` |
 | Discussion name not found | `Discussion "name" not found. Available discussions: ...` |
 
 #### bench task refine
@@ -758,7 +784,7 @@ bench task refine add-auth --add-discussion feedback --add-discussion edge-cases
 | `name` | positional | yes | Task name |
 | `--add-discussion` | string (repeatable) | no | Name of an existing discussion to attach to the task. Can be used multiple times. |
 
-Reads `task-refine-spec.md`, substitutes `{{TASK}}`, `{{REPOSITORIES}}`, and `{{DISCUSSIONS}}`, and launches opencode interactively. The AI reviews the existing spec for completeness and asks clarifying questions to improve it.
+Reads `task-refine-spec.md`, substitutes `{{TASK}}`, `{{REPOSITORIES}}`, and `{{DISCUSSIONS}}`, and launches opencode interactively. The AI reviews the existing spec for completeness and asks clarifying questions to improve it. If the task has repos specified in `task.yaml` (from `--only-repo` on `task create`), the `<repositories>` block is automatically filtered to include only those repos.
 
 Requires `spec.md` to exist in the task folder.
 
@@ -807,7 +833,7 @@ bench task implement add-auth
 
 Each phase:
 1. Validates all `required-files` exist and are non-empty
-2. Reads and renders the prompt template (substituting `{{TASK}}` and `{{REPOSITORIES}}`)
+2. Reads and renders the prompt template (substituting `{{TASK}}` and `{{REPOSITORIES}}`). If the task has repos specified in `task.yaml` (from `--only-repo` on `task create`), the `<repositories>` block is automatically filtered to include only those repos.
 3. Runs opencode in **headless mode** (`opencode run`) -- the agent processes the prompt to completion and exits automatically
 4. Validates all `output-files` were created and are non-empty
 
@@ -880,6 +906,7 @@ bench task list --completed    # completed tasks only
 | Name | Task name |
 | Created | Date from folder prefix (YYYY-MM-DD) |
 | Completed | Completion date, or empty |
+| Repos | Repository scope -- shows comma-separated repo names if scoped via `--only-repo`, or dim "all" if unscoped |
 | Spec | Green "yes" if `spec.md` exists and is non-empty |
 | Impl | Green "yes" if `impl.md` exists and is non-empty |
 | Files | Green "yes" if `files.md` exists and is non-empty |
@@ -897,12 +924,32 @@ Start and manage free-form AI discussion sessions.
 Launches an interactive opencode discussion session.
 
 ```bash
-bench discuss start
+bench discuss start                              # discuss with all repos in context
+bench discuss start --only-repo service-repo     # scope discussion to a specific repo
+bench discuss start --only-repo repo1 --only-repo repo2  # scope to multiple repos
 ```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `--only-repo` | string (repeatable) | no | Scope this discussion to specific repositories. Only the listed repos are included in the `<repositories>` block of the discussion prompt. This is **ephemeral** -- it only affects the current discussion session and is not persisted anywhere. Tab completion is supported for repo names. |
 
 The AI agent engages in a free-form conversation. When the conversation ends, the agent writes a dated summary markdown file to `bench/discussions/YYYYMMDD - <title>.md` capturing the main topics, decisions, action items, and reasoning discussed.
 
+**`--only-repo` option:** When specified, only the listed repos are included in the discussion prompt's `<repositories>` block. This is useful when you want to discuss something specific to a subset of your repos. Unlike `task create --only-repo`, the discussion filter is **not persisted** -- it only affects the current session. If not specified, all workbench repos are included (default behavior).
+
+| `--only-repo` flag | Prompt behavior |
+|---|---|
+| Not specified | All workbench repos included in `<repositories>` block |
+| `--only-repo service-repo` | Only `./repo/service-repo` in `<repositories>` block |
+| `--only-repo repo1 --only-repo repo2` | Only those repos in `<repositories>` block |
+
 **Discussion name uniqueness:** The AI agent is informed of all existing discussion names and instructed to choose a unique title for the new discussion. This ensures that discussion names can be reliably used as identifiers when attaching discussions to tasks via `--add-discussion`.
+
+**Validation errors:**
+
+| Condition | Error |
+|---|---|
+| Unknown repo name in `--only-repo` | `Unknown repo(s): <names>. Available repos: <list>` |
 
 **Connecting discussions to tasks:** After a discussion, you can attach it to a task to give the AI agent context from the conversation:
 

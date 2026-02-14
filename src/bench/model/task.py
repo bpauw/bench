@@ -9,6 +9,7 @@ class TaskConfig(BaseModel):
 
     name: str
     completed: str | None = None
+    repos: list[str] = []
 
 
 class TaskFilter(str, Enum):
@@ -29,3 +30,4 @@ class TaskEntry(BaseModel):
     has_spec: bool = False
     has_impl: bool = False
     has_files: bool = False
+    repos: list[str] = []

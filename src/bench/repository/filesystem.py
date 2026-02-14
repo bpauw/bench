@@ -747,6 +747,7 @@ def create_task_scaffold(
     tasks_dir: Path,
     task_folder_name: str,
     task_name: str,
+    repos: list[str] | None = None,
 ) -> list[str]:
     """Create a task folder with metadata and template files.
 
@@ -779,7 +780,7 @@ def create_task_scaffold(
     # Write task.yaml
     save_yaml_file(
         task_dir / TASK_YAML_FILENAME,
-        {"name": task_name, "completed": None},
+        {"name": task_name, "completed": None, "repos": repos if repos else []},
     )
     created.append(f"{task_folder_name}/{TASK_YAML_FILENAME}")
 
@@ -871,6 +872,7 @@ def list_task_entries(tasks_dir: Path) -> list[dict[str, Any]]:
                 "has_spec": task_file_exists_and_nonempty(entry, SPEC_MD_FILENAME),
                 "has_impl": task_file_exists_and_nonempty(entry, IMPL_MD_FILENAME),
                 "has_files": task_file_exists_and_nonempty(entry, FILES_MD_FILENAME),
+                "repos": raw_data.get("repos", []),
             }
         )
 
