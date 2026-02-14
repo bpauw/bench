@@ -7,6 +7,7 @@ from bench.repository.filesystem import (
     BENCH_DIR_NAME_DEFAULT,
     DIRECTORIES_PLACEHOLDER,
     POPULATE_AGENTS_PROMPT_FILENAME,
+    PROMPT_SEED_FILES,
     PROMPTS_DIR_NAME,
     list_repo_directories,
     list_sibling_directories,
@@ -118,3 +119,88 @@ def populate_agents_md(
         raise RuntimeError(
             f"opencode exited with code {exit_code} during AGENTS.md population"
         )
+
+
+def populate_prompts(cwd: Path) -> dict[str, object]:
+    """Synchronize on-disk prompt files with the canonical PROMPT_SEED_FILES templates.
+
+    Compares each prompt file defined in PROMPT_SEED_FILES against its on-disk
+    counterpart. Missing files are created, differing files are overwritten, and
+    matching files are left untouched.
+
+    Adapts behavior based on detected mode:
+    - ROOT: Prompts directory is <root>/<bench_dir>/prompts/
+    - WORKBENCH: Prompts directory is <cwd>/<bench_dir>/prompts/
+
+    Args:
+        cwd: The current working directory.
+
+    Returns:
+        A dict with per-file results and aggregate counts:
+        - "results": list of dicts with "filename" and "status" keys
+        - "created": count of newly created files
+        - "updated": count of overwritten files
+        - "up_to_date": count of files already matching their template
+
+    Raises:
+        ValueError: If mode is UNINITIALIZED or WITHIN_ROOT, or if the
+                    prompts directory does not exist.
+    """
+    # Phase 1: Detect mode and validate
+    context = detect_mode(cwd)
+
+    if context.mode == BenchMode.UNINITIALIZED:
+        raise ValueError("Not inside a bench project. Run 'bench init' first.")
+    if context.mode == BenchMode.WITHIN_ROOT:
+        raise ValueError(
+            "Cannot populate prompts from inside the project tree. "
+            "Run this command from the project root or a workbench directory."
+        )
+
+    # Phase 2: Resolve prompts directory path
+    if context.mode == BenchMode.ROOT:
+        assert context.root_path is not None
+        assert context.bench_dir_name is not None
+        prompts_dir = context.root_path / context.bench_dir_name / PROMPTS_DIR_NAME
+    else:
+        # WORKBENCH mode
+        assert context.bench_dir_name is not None
+        prompts_dir = cwd / context.bench_dir_name / PROMPTS_DIR_NAME
+
+    if not prompts_dir.is_dir():
+        raise ValueError(
+            f"Prompts directory not found: {prompts_dir}. "
+            "The project may not be properly initialized."
+        )
+
+    # Phase 3: Compare and synchronize files
+    results: list[dict[str, str]] = []
+
+    for filename, template_content in PROMPT_SEED_FILES.items():
+        file_path = prompts_dir / filename
+
+        if not file_path.exists():
+            # File missing -- create it
+            file_path.write_text(template_content)
+            results.append({"filename": filename, "status": "created"})
+        else:
+            # File exists -- compare trimmed content
+            on_disk_content = file_path.read_text()
+            if on_disk_content.rstrip() == template_content.rstrip():
+                results.append({"filename": filename, "status": "up_to_date"})
+            else:
+                # Content differs -- overwrite
+                file_path.write_text(template_content)
+                results.append({"filename": filename, "status": "updated"})
+
+    # Phase 4: Build and return summary dict
+    created_count = sum(1 for r in results if r["status"] == "created")
+    updated_count = sum(1 for r in results if r["status"] == "updated")
+    up_to_date_count = sum(1 for r in results if r["status"] == "up_to_date")
+
+    return {
+        "results": results,
+        "created": created_count,
+        "updated": updated_count,
+        "up_to_date": up_to_date_count,
+    }

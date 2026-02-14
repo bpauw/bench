@@ -1,5 +1,11 @@
 # Changelog
 
+## Version 0.9.0
+
+### New
+
+- Added `bench populate prompts` command that synchronizes on-disk prompt template files with the latest built-in templates. Compares each prompt file against its canonical version, creating missing files and overwriting outdated ones, with per-file status output and a summary of changes.
+
 ## Version 0.8.0
 
 ### Updated

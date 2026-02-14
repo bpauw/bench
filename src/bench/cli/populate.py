@@ -3,10 +3,13 @@ from typing import Annotated
 
 import typer
 
-from bench.service.populate import populate_agents_md
+from bench.service.populate import populate_agents_md, populate_prompts
 from bench.view.populate import (
     display_populate_agents_error,
     display_populate_agents_start,
+    display_populate_prompts_error,
+    display_populate_prompts_results,
+    display_populate_prompts_start,
 )
 
 populate_app: typer.Typer = typer.Typer(help="Populate generated files.")
@@ -37,6 +40,20 @@ def agents(
 
 
 populate_app.command("agents")(agents)
+
+
+def prompts() -> None:
+    """Synchronize prompt template files with the latest built-in templates."""
+    try:
+        display_populate_prompts_start()
+        result = populate_prompts(Path.cwd())
+        display_populate_prompts_results(result)
+    except (ValueError, RuntimeError) as e:
+        display_populate_prompts_error(str(e))
+        raise typer.Exit(code=1)
+
+
+populate_app.command("prompts")(prompts)
 
 
 def register(app: typer.Typer) -> None:

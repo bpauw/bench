@@ -8,6 +8,9 @@ from bench.view.populate import (
     display_populate_agents_error,
     display_populate_agents_start,
     display_populate_agents_warning,
+    display_populate_prompts_error,
+    display_populate_prompts_results,
+    display_populate_prompts_start,
 )
 from bench.view.source import (
     display_source_added,
@@ -51,6 +54,9 @@ __all__ = [
     "display_populate_agents_error",
     "display_populate_agents_start",
     "display_populate_agents_warning",
+    "display_populate_prompts_error",
+    "display_populate_prompts_results",
+    "display_populate_prompts_start",
     "display_source_added",
     "display_source_error",
     "display_source_list",

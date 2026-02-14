@@ -18,6 +18,7 @@ Bench manages git worktrees organized into **workbenches** -- isolated developme
   - [bench status](#bench-status)
   - [bench populate](#bench-populate)
     - [populate agents](#bench-populate-agents)
+    - [populate prompts](#bench-populate-prompts)
   - [bench source](#bench-source)
     - [source add](#bench-source-add)
     - [source list](#bench-source-list)
@@ -205,6 +206,7 @@ Running `bench` with no subcommand defaults to `bench status`.
 | `bench init` | UNINITIALIZED | Initialize a new bench project |
 | `bench status` | Any | Display current mode, project root, workbench info, AI model |
 | `bench populate agents` | ROOT / WORKBENCH | (Re)generate AGENTS.md using an AI agent |
+| `bench populate prompts` | ROOT / WORKBENCH | Synchronize prompt templates with latest built-in versions |
 | `bench source add` | ROOT | Add a named source with repo-to-branch mappings |
 | `bench source list` | ROOT | List all sources |
 | `bench source update` | ROOT | Add/remove repos from an existing source |
@@ -277,7 +279,7 @@ bench              # same (default command)
 
 ### bench populate
 
-Regenerate AI-produced files. The `populate` command group provides subcommands for regenerating files that are initially created during `bench init` or workbench setup. Currently supports regenerating `AGENTS.md`.
+Regenerate AI-produced and template-based files. The `populate` command group provides subcommands for regenerating files that are initially created during `bench init` or workbench setup. Supports regenerating `AGENTS.md` and synchronizing prompt template files.
 
 #### bench populate agents
 
@@ -333,6 +335,67 @@ The command adapts based on where you run it:
 | Inside project but not at root or workbench | `Cannot populate AGENTS.md from inside the project tree. Run this command from the project root or a workbench directory.` |
 | Unknown repository name in `--repo` | `Unknown repositories: <names>. Available: <list>` |
 | opencode not installed or fails | `opencode exited with code <N> during AGENTS.md population` |
+
+#### bench populate prompts
+
+Synchronizes on-disk prompt template files with the latest built-in versions. When bench is updated and ships new or modified prompt templates, this command brings your project's prompt files up to date. Run it from the project root to update `.bench/prompts/`, or from within a workbench to update that workbench's `bench/prompts/`.
+
+```bash
+bench populate prompts
+```
+
+This command takes no options or arguments. It checks every prompt file defined in the built-in template set (the same 7 files created by `bench init`) and reports the status of each one.
+
+**How it works:**
+
+1. Detects the current mode and validates that the command can run (ROOT or WORKBENCH only)
+2. Resolves the prompts directory:
+   - **ROOT mode:** `.bench/prompts/`
+   - **WORKBENCH mode:** `bench/prompts/` (within the current workbench)
+3. For each of the 7 built-in prompt template files:
+   - If the file **does not exist** on disk: creates it from the built-in template
+   - If the file **exists but differs** from the built-in template: overwrites it with the latest version
+   - If the file **already matches** the built-in template: leaves it untouched
+4. Displays per-file status and a summary
+
+Comparison uses trailing-whitespace-trimmed content, so trivial differences from editors adding or removing trailing newlines do not trigger unnecessary updates. Files in the prompts directory that are not part of the built-in template set (e.g., custom prompt files you've added) are ignored and left untouched.
+
+**Example output:**
+
+```
+Populating prompt files...
+  Up to date  task-create-spec.md
+  Up to date  task-refine-spec.md
+  Up to date  task-write-impl-docs.md
+  Up to date  task-do-impl.md
+  Updated     task-update-change-docs.md
+  Up to date  discuss.md
+  Up to date  populate-agents.md
+
+1 updated, 0 created, 6 already up to date
+```
+
+**When to run:**
+
+- After upgrading bench to a new version that includes updated prompt templates
+- After accidentally modifying a prompt file and wanting to restore it to the default
+- When setting up a new workbench and wanting to ensure prompts are current (though `bench workbench create` already copies the latest templates from `.bench/prompts/`)
+
+**Context-aware behavior:**
+
+| Aspect | ROOT mode | WORKBENCH mode |
+|---|---|---|
+| Prompts directory | `.bench/prompts/` | `bench/prompts/` (workbench-local) |
+| Files checked | All 7 built-in templates | All 7 built-in templates |
+| Other files in directory | Ignored | Ignored |
+
+**Validation errors:**
+
+| Condition | Error |
+|---|---|
+| Uninitialized directory | `Not inside a bench project. Run 'bench init' first.` |
+| Inside project but not at root or workbench | `Cannot populate prompts from inside the project tree. Run this command from the project root or a workbench directory.` |
+| Prompts directory missing | `Prompts directory not found: <path>. The project may not be properly initialized.` |
 
 ---
 
@@ -1237,7 +1300,7 @@ src/bench/
   cli/
     __init__.py            # Typer app, command registration, default callback
     init.py                # bench init
-    populate.py            # bench populate {agents}
+    populate.py            # bench populate {agents,prompts}
     status.py              # bench status
     source.py              # bench source {add,list,update,remove}
     workbench.py           # bench workbench {create,update,retire,delete,activate,list}
@@ -1258,7 +1321,7 @@ src/bench/
     __init__.py            # Re-exports public service functions
     mode_detection.py      # detect_mode()
     init.py                # initialize_project()
-    populate.py            # populate_agents_md()
+    populate.py            # populate_agents_md(), populate_prompts()
     git.py                 # get_git_status(), create_git_branch(), push_git_branch()
     opencode.py            # run_opencode_prompt()
     source.py              # add/list/update/remove_source()
