@@ -36,12 +36,15 @@ def display_populate_prompts_start() -> None:
     console.print("[bold]Populating prompt files...[/bold]")
 
 
-def display_populate_prompts_results(result: dict[str, object]) -> None:
-    """Display per-file statuses and summary for prompts population.
+def display_populate_prompts_preview(result: dict[str, object]) -> None:
+    """Display a preview of what prompt population will do.
+
+    Shows per-file statuses and summary counts before the user confirms.
 
     Args:
-        result: Dict returned by populate_prompts() containing "results" (list of
-                per-file status dicts), "created", "updated", and "up_to_date" counts.
+        result: Dict returned by preview_populate_prompts() containing "results"
+                (list of per-file status dicts), "created", "updated", and
+                "up_to_date" counts.
     """
     results = result["results"]  # list[dict[str, str]]
 
@@ -64,6 +67,24 @@ def display_populate_prompts_results(result: dict[str, object]) -> None:
     console.print(
         f"[bold]{updated} updated, {created} created, {up_to_date} already up to date[/bold]"
     )
+
+
+def display_populate_prompts_complete(result: dict[str, object]) -> None:
+    """Display a brief completion message after prompt files have been written.
+
+    Args:
+        result: Dict returned by populate_prompts() with count keys.
+    """
+    created = result["created"]
+    updated = result["updated"]
+    console.print(
+        f"[bold green]Done.[/bold green] {created} created, {updated} updated."
+    )
+
+
+def display_populate_prompts_up_to_date() -> None:
+    """Display a message when all prompt files are already up to date."""
+    console.print("[dim]All prompt files are already up to date.[/dim]")
 
 
 def display_populate_prompts_error(message: str) -> None:

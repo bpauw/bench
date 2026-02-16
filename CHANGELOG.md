@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 0.13.0
+
+### Updated
+
+- `bench populate prompts` now previews which files will be created or updated before making changes, and requires confirmation to proceed. When all files are already up to date, the command reports this and exits without prompting. Supports `--yes`/`-y` to skip confirmation.
+- `bench populate agents` now asks for confirmation before overwriting AGENTS.md with AI-generated content. Supports `--yes`/`-y` to skip confirmation.
+- Refactored the prompt file comparison logic into shared helpers, eliminating duplication between the new preview and the existing populate functions
+
 ## Version 0.12.0
 
 ### New

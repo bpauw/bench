@@ -121,6 +121,113 @@ def populate_agents_md(
         )
 
 
+def _compare_prompt_files(prompts_dir: Path) -> list[dict[str, str]]:
+    """Compare on-disk prompt files against PROMPT_SEED_FILES templates.
+
+    Returns a list of dicts, each with 'filename' and 'status' keys.
+    Status is one of: 'created' (file missing), 'updated' (content differs),
+    'up_to_date' (content matches).
+
+    Note: This function does NOT write any files. The 'created' and 'updated'
+    statuses indicate what WOULD happen, not what HAS happened.
+    """
+    results: list[dict[str, str]] = []
+    for filename, template_content in PROMPT_SEED_FILES.items():
+        file_path = prompts_dir / filename
+        if not file_path.exists():
+            results.append({"filename": filename, "status": "created"})
+        else:
+            on_disk_content = file_path.read_text()
+            if on_disk_content.rstrip() == template_content.rstrip():
+                results.append({"filename": filename, "status": "up_to_date"})
+            else:
+                results.append({"filename": filename, "status": "updated"})
+    return results
+
+
+def _build_prompts_summary(results: list[dict[str, str]]) -> dict[str, object]:
+    """Build a summary dict from comparison results.
+
+    Args:
+        results: List of per-file comparison dicts from _compare_prompt_files.
+
+    Returns:
+        Dict with "results", "created", "updated", "up_to_date" keys.
+    """
+    created_count = sum(1 for r in results if r["status"] == "created")
+    updated_count = sum(1 for r in results if r["status"] == "updated")
+    up_to_date_count = sum(1 for r in results if r["status"] == "up_to_date")
+
+    return {
+        "results": results,
+        "created": created_count,
+        "updated": updated_count,
+        "up_to_date": up_to_date_count,
+    }
+
+
+def _resolve_prompts_dir(cwd: Path) -> Path:
+    """Detect mode and resolve the prompts directory path.
+
+    Args:
+        cwd: The current working directory.
+
+    Returns:
+        The resolved prompts directory path.
+
+    Raises:
+        ValueError: If mode is UNINITIALIZED or WITHIN_ROOT, or if the
+                    prompts directory does not exist.
+    """
+    context = detect_mode(cwd)
+
+    if context.mode == BenchMode.UNINITIALIZED:
+        raise ValueError("Not inside a bench project. Run 'bench init' first.")
+    if context.mode == BenchMode.WITHIN_ROOT:
+        raise ValueError(
+            "Cannot populate prompts from inside the project tree. "
+            "Run this command from the project root or a workbench directory."
+        )
+
+    if context.mode == BenchMode.ROOT:
+        assert context.root_path is not None
+        assert context.bench_dir_name is not None
+        prompts_dir = context.root_path / context.bench_dir_name / PROMPTS_DIR_NAME
+    else:
+        assert context.bench_dir_name is not None
+        prompts_dir = cwd / context.bench_dir_name / PROMPTS_DIR_NAME
+
+    if not prompts_dir.is_dir():
+        raise ValueError(
+            f"Prompts directory not found: {prompts_dir}. "
+            "The project may not be properly initialized."
+        )
+
+    return prompts_dir
+
+
+def preview_populate_prompts(cwd: Path) -> dict[str, object]:
+    """Preview what populate_prompts would do without making changes.
+
+    Performs mode detection, path resolution, and file comparison, but
+    does not write any files.
+
+    Args:
+        cwd: The current working directory.
+
+    Returns:
+        Same structure as populate_prompts(): dict with "results",
+        "created", "updated", "up_to_date" keys.
+
+    Raises:
+        ValueError: If mode is UNINITIALIZED or WITHIN_ROOT, or if the
+                    prompts directory does not exist.
+    """
+    prompts_dir = _resolve_prompts_dir(cwd)
+    results = _compare_prompt_files(prompts_dir)
+    return _build_prompts_summary(results)
+
+
 def populate_prompts(cwd: Path) -> dict[str, object]:
     """Synchronize on-disk prompt files with the canonical PROMPT_SEED_FILES templates.
 
@@ -146,61 +253,15 @@ def populate_prompts(cwd: Path) -> dict[str, object]:
         ValueError: If mode is UNINITIALIZED or WITHIN_ROOT, or if the
                     prompts directory does not exist.
     """
-    # Phase 1: Detect mode and validate
-    context = detect_mode(cwd)
+    prompts_dir = _resolve_prompts_dir(cwd)
 
-    if context.mode == BenchMode.UNINITIALIZED:
-        raise ValueError("Not inside a bench project. Run 'bench init' first.")
-    if context.mode == BenchMode.WITHIN_ROOT:
-        raise ValueError(
-            "Cannot populate prompts from inside the project tree. "
-            "Run this command from the project root or a workbench directory."
-        )
+    # Compare files against templates
+    results = _compare_prompt_files(prompts_dir)
 
-    # Phase 2: Resolve prompts directory path
-    if context.mode == BenchMode.ROOT:
-        assert context.root_path is not None
-        assert context.bench_dir_name is not None
-        prompts_dir = context.root_path / context.bench_dir_name / PROMPTS_DIR_NAME
-    else:
-        # WORKBENCH mode
-        assert context.bench_dir_name is not None
-        prompts_dir = cwd / context.bench_dir_name / PROMPTS_DIR_NAME
+    # Write files that need creating or updating
+    for entry in results:
+        if entry["status"] in ("created", "updated"):
+            file_path = prompts_dir / entry["filename"]
+            file_path.write_text(PROMPT_SEED_FILES[entry["filename"]])
 
-    if not prompts_dir.is_dir():
-        raise ValueError(
-            f"Prompts directory not found: {prompts_dir}. "
-            "The project may not be properly initialized."
-        )
-
-    # Phase 3: Compare and synchronize files
-    results: list[dict[str, str]] = []
-
-    for filename, template_content in PROMPT_SEED_FILES.items():
-        file_path = prompts_dir / filename
-
-        if not file_path.exists():
-            # File missing -- create it
-            file_path.write_text(template_content)
-            results.append({"filename": filename, "status": "created"})
-        else:
-            # File exists -- compare trimmed content
-            on_disk_content = file_path.read_text()
-            if on_disk_content.rstrip() == template_content.rstrip():
-                results.append({"filename": filename, "status": "up_to_date"})
-            else:
-                # Content differs -- overwrite
-                file_path.write_text(template_content)
-                results.append({"filename": filename, "status": "updated"})
-
-    # Phase 4: Build and return summary dict
-    created_count = sum(1 for r in results if r["status"] == "created")
-    updated_count = sum(1 for r in results if r["status"] == "updated")
-    up_to_date_count = sum(1 for r in results if r["status"] == "up_to_date")
-
-    return {
-        "results": results,
-        "created": created_count,
-        "updated": updated_count,
-        "up_to_date": up_to_date_count,
-    }
+    return _build_prompts_summary(results)

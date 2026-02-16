@@ -215,8 +215,8 @@ Running `bench` with no subcommand defaults to `bench status`.
 |---|---|---|
 | `bench init` | UNINITIALIZED | Initialize a new bench project |
 | `bench status` | Any | Display current mode, project root, workbench info, AI model |
-| `bench populate agents` | ROOT / WORKBENCH | (Re)generate AGENTS.md using an AI agent |
-| `bench populate prompts` | ROOT / WORKBENCH | Synchronize prompt templates with latest built-in versions |
+| `bench populate agents` | ROOT / WORKBENCH | (Re)generate AGENTS.md using an AI agent (with confirmation) |
+| `bench populate prompts` | ROOT / WORKBENCH | Synchronize prompt templates with latest built-in versions (with preview and confirmation) |
 | `bench source add` | ROOT | Add a named source with repo-to-branch mappings |
 | `bench source list` | ROOT | List all sources |
 | `bench source update` | ROOT | Add/remove repos from an existing source |
@@ -294,7 +294,7 @@ bench              # same (default command)
 
 ### bench populate
 
-Regenerate AI-produced and template-based files. The `populate` command group provides subcommands for regenerating files that are initially created during `bench init` or workbench setup. Supports regenerating `AGENTS.md` and synchronizing prompt template files.
+Regenerate AI-produced and template-based files. The `populate` command group provides subcommands for regenerating files that are initially created during `bench init` or workbench setup. Supports regenerating `AGENTS.md` and synchronizing prompt template files. Both subcommands ask for confirmation before making changes (skippable with `--yes`/`-y`), and `populate prompts` shows a preview of exactly which files will be affected before prompting.
 
 #### bench populate agents
 
@@ -305,12 +305,25 @@ bench populate agents                          # use default model from config, 
 bench populate agents --model anthropic/claude-sonnet-4-20250514  # override AI model
 bench populate agents --repo bench-code        # scan only bench-code repository
 bench populate agents --repo repo1 --repo repo2  # scan specific repositories
+bench populate agents --yes                    # skip confirmation prompt
+bench populate agents -y                       # short form
 ```
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `--model` | string | from config | Override the AI model used for population (falls back to `models.task` in `base-config.yaml`) |
 | `--repo` | string (repeatable) | all repos | Specify which repositories to include. Can be used multiple times. If not specified, all discovered repositories are scanned. |
+| `--yes` / `-y` | flag | false | Skip the confirmation prompt. By default, the command asks you to confirm before overwriting AGENTS.md with AI-generated content. |
+
+**Confirmation behavior:**
+
+Before running the AI agent, the command asks for confirmation:
+
+```
+This will overwrite AGENTS.md with AI-generated content. Proceed? [y/N]
+```
+
+Answering "no" (or pressing Enter) cancels the operation cleanly with the message `Population cancelled.` and exit code 0. Use `--yes` or `-y` to skip this prompt, which is useful in scripts or when you know you want to proceed.
 
 **Context-aware behavior:**
 
@@ -356,10 +369,14 @@ The command adapts based on where you run it:
 Synchronizes on-disk prompt template files with the latest built-in versions. When bench is updated and ships new or modified prompt templates, this command brings your project's prompt files up to date. Run it from the project root to update `.bench/prompts/`, or from within a workbench to update that workbench's `bench/prompts/`.
 
 ```bash
-bench populate prompts
+bench populate prompts          # preview changes, then confirm before applying
+bench populate prompts --yes    # skip confirmation prompt
+bench populate prompts -y       # short form
 ```
 
-This command takes no options or arguments. It checks every prompt file defined in the built-in template set (the same 8 files created by `bench init`) and reports the status of each one.
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--yes` / `-y` | flag | false | Skip the confirmation prompt. Changes are applied immediately after the preview. |
 
 **How it works:**
 
@@ -367,15 +384,19 @@ This command takes no options or arguments. It checks every prompt file defined 
 2. Resolves the prompts directory:
    - **ROOT mode:** `.bench/prompts/`
    - **WORKBENCH mode:** `bench/prompts/` (within the current workbench)
-3. For each of the 8 built-in prompt template files:
-   - If the file **does not exist** on disk: creates it from the built-in template
-   - If the file **exists but differs** from the built-in template: overwrites it with the latest version
-   - If the file **already matches** the built-in template: leaves it untouched
-4. Displays per-file status and a summary
+3. **Previews** what would change by comparing each of the 8 built-in prompt template files against the on-disk versions:
+   - If the file **does not exist** on disk: marked as "Created" (will be created)
+   - If the file **exists but differs** from the built-in template: marked as "Updated" (will be overwritten)
+   - If the file **already matches** the built-in template: marked as "Up to date" (no action needed)
+4. If **all files are already up to date**, displays a message and exits without prompting -- no confirmation needed when there is nothing to do
+5. Displays the per-file preview showing what will be created or updated
+6. **Asks for confirmation** before applying any changes (unless `--yes` is set)
+7. Applies the changes (creates missing files, overwrites outdated files)
+8. Displays a brief completion summary
 
 Comparison uses trailing-whitespace-trimmed content, so trivial differences from editors adding or removing trailing newlines do not trigger unnecessary updates. Files in the prompts directory that are not part of the built-in template set (e.g., custom prompt files you've added) are ignored and left untouched.
 
-**Example output:**
+**Example output (changes needed):**
 
 ```
 Populating prompt files...
@@ -389,6 +410,29 @@ Populating prompt files...
   Up to date  populate-agents.md
 
 1 updated, 0 created, 7 already up to date
+Proceed? [y/N]: y
+Done. 0 created, 1 updated.
+```
+
+**Example output (all up to date):**
+
+```
+Populating prompt files...
+All prompt files are already up to date.
+```
+
+**Example output (cancelled):**
+
+```
+Populating prompt files...
+  Created     task-create-spec.md
+  Updated     task-update-change-docs.md
+  Up to date  discuss.md
+  ...
+
+1 updated, 1 created, 6 already up to date
+Proceed? [y/N]: n
+Population cancelled.
 ```
 
 **When to run:**
@@ -1429,7 +1473,7 @@ src/bench/
     __init__.py            # Re-exports public service functions
     mode_detection.py      # detect_mode()
     init.py                # initialize_project()
-    populate.py            # populate_agents_md(), populate_prompts()
+    populate.py            # populate_agents_md(), populate_prompts(), preview_populate_prompts()
     git.py                 # get_git_status(), create_git_branch(), push_git_branch()
     opencode.py            # run_opencode_prompt()
     source.py              # add/list/update/remove_source()
