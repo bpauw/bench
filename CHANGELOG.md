@@ -1,5 +1,17 @@
 # Changelog
 
+## Version 0.11.0
+
+### New
+
+- Added `journal.md` as a per-task activity log that the AI maintains throughout all three implementation phases. Each entry uses a timestamped, type-tagged format (`decision`, `issue`, `observation`, `deviation`, `rationale`) to capture the AI's reasoning, problems encountered, and deviations from the spec as they happen.
+- Added a "Journal" column to the `bench task list` output, showing whether a task has journal entries
+
+### Updated
+
+- Implementation flow now threads `journal.md` across all phases: phase 1 produces it as an output, phases 2 and 3 consume it as a required input, allowing later phases to read earlier journal entries for context
+- All three implementation prompt templates (`task-write-impl-docs.md`, `task-do-impl.md`, `task-update-change-docs.md`) now include inline instructions for maintaining the journal continuously throughout each phase
+
 ## Version 0.10.0
 
 ### New

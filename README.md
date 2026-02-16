@@ -63,7 +63,7 @@ Bench manages git worktrees organized into **workbenches** -- isolated developme
 |---|---|
 | **Source** | A named collection of repository-to-branch mappings. Sources define which repos and branches are used when creating workbenches. |
 | **Workbench** | An isolated development environment containing git worktrees for each repo in a source, plus orchestration metadata (`AGENTS.md`, tasks, prompts, history, discussions). |
-| **Task** | A unit of work tracked within a workbench. Each task has a spec, implementation plan, file list, and notes. Tasks can be created, refined, implemented (via AI), and completed. |
+| **Task** | A unit of work tracked within a workbench. Each task has a spec, implementation plan, file list, notes, and journal. Tasks can be created, refined, implemented (via AI), and completed. |
 | **Discussion** | A free-form AI conversation session. When finished, the agent writes a dated summary to `bench/discussions/`. |
 | **Implementation Flow** | A configurable multi-phase pipeline that automates task implementation using headless AI agent sessions. Each phase has a prompt template, required inputs, and expected outputs. |
 
@@ -185,7 +185,8 @@ Bench follows a structured development workflow:
                                      │
                 ┌────────────────────▼────────────────────┐
                 │          task implement                 │  Multi-phase AI implementation
-                │  (plan → build → doc, reads spec.md)   │  Discussion refs in spec.md
+                │  (plan → build → doc, reads spec.md)   │  journal.md maintained across
+                │                                         │  all phases for decision trail
                 └────────────────────┬────────────────────┘
                                      │
                             ┌────────▼────────┐
@@ -774,6 +775,7 @@ bench/tasks/YYYYMMDD - <name>/
   files.md      # Files relevant to the task (initially empty)
   impl.md       # Implementation plan (initially empty)
   notes.md      # Miscellaneous notes (initially empty)
+  journal.md    # Chronological activity log maintained by AI during implementation (initially empty)
 ```
 
 **task.yaml format:**
@@ -893,9 +895,9 @@ bench task implement add-auth
 
 | Phase | Name | Prompt | Required Inputs | Expected Outputs |
 |---|---|---|---|---|
-| 1 | Writing implementation docs | `task-write-impl-docs.md` | `spec.md` | `impl.md` |
-| 2 | Implementing | `task-do-impl.md` | `spec.md`, `impl.md` | -- |
-| 3 | Updating change docs | `task-update-change-docs.md` | `spec.md`, `impl.md` | -- |
+| 1 | Writing implementation docs | `task-write-impl-docs.md` | `spec.md` | `impl.md`, `journal.md` |
+| 2 | Implementing | `task-do-impl.md` | `spec.md`, `impl.md`, `journal.md` | -- |
+| 3 | Updating change docs | `task-update-change-docs.md` | `spec.md`, `impl.md`, `journal.md` | -- |
 
 Each phase:
 1. Validates all `required-files` exist and are non-empty
@@ -904,6 +906,40 @@ Each phase:
 4. Validates all `output-files` were created and are non-empty
 
 If any phase fails, execution stops immediately.
+
+**Journal (`journal.md`) -- cross-phase activity log:**
+
+During implementation, the AI agent maintains `journal.md` as a chronological activity log. This file accumulates across all three phases, giving later phases access to the reasoning and observations from earlier phases.
+
+Each journal entry follows this format:
+
+```markdown
+## YYYY-MM-DD HH:MM - [tag]
+
+Freeform markdown content describing the entry.
+```
+
+The AI uses five type tags to categorize entries:
+
+| Tag | When to use |
+|---|---|
+| `decision` | A choice made between alternatives, with reasoning |
+| `issue` | A problem, error, or unexpected behavior encountered |
+| `observation` | Something notable discovered about the codebase |
+| `deviation` | A place where implementation diverged from the spec, and why |
+| `rationale` | Explanation of why a particular approach was taken |
+
+Entries are appended chronologically (newest at the bottom). The AI writes entries continuously throughout each phase -- not just at the end. This creates a persistent record of *why* certain implementation choices were made, which is valuable for human review after the fact.
+
+How journal data flows across phases:
+
+| Phase | Journal behavior |
+|---|---|
+| Phase 1 (Writing implementation docs) | Creates `journal.md` as an output. Writes entries for decisions about the implementation plan, codebase observations during planning, and any early deviations from the spec. |
+| Phase 2 (Implementing) | Reads existing journal entries from phase 1 for context. Continues writing entries for decisions about code structure, problems encountered during coding, and deviations from the implementation plan. |
+| Phase 3 (Updating change docs) | Reads existing journal entries from phases 1 and 2 for context (this can inform more accurate changelog/readme content). Continues writing entries for notable decisions or observations during documentation updates. |
+
+The journal is purely an implementation-phase artifact -- there are no CLI commands to view or manage it directly. You can read `journal.md` in any task folder to review the AI's decision trail.
 
 **Phase 3 -- Updating change docs:**
 
@@ -991,6 +1027,7 @@ bench task list --completed    # completed tasks only
 | Spec | Green "yes" if `spec.md` exists and is non-empty |
 | Impl | Green "yes" if `impl.md` exists and is non-empty |
 | Files | Green "yes" if `files.md` exists and is non-empty |
+| Journal | Green "yes" if `journal.md` exists and is non-empty |
 
 Tasks are sorted by creation date ascending. Tasks with missing or malformed `task.yaml` are silently skipped.
 
@@ -1088,17 +1125,20 @@ implementation-flow-template:
       - spec.md
     output-files:
       - impl.md
+      - journal.md
   - name: Implementing
     prompt: task-do-impl.md
     required-files:
       - spec.md
       - impl.md
+      - journal.md
     output-files: []
   - name: Updating change docs
     prompt: task-update-change-docs.md
     required-files:
       - spec.md
       - impl.md
+      - journal.md
     output-files: []
 ```
 
@@ -1129,17 +1169,20 @@ implementation-flow:
       - spec.md
     output-files:
       - impl.md
+      - journal.md
   - name: Implementing
     prompt: task-do-impl.md
     required-files:
       - spec.md
       - impl.md
+      - journal.md
     output-files: []
   - name: Updating change docs
     prompt: task-update-change-docs.md
     required-files:
       - spec.md
       - impl.md
+      - journal.md
     output-files: []
 ```
 
@@ -1172,8 +1215,10 @@ The implementation pipeline is fully customizable per-project and per-workbench.
   prompt: my-custom-prompt.md      # Prompt template filename (in bench/prompts/)
   required-files:                  # Must exist and be non-empty before this step
     - spec.md
+    - journal.md
   output-files:                    # Must exist and be non-empty after this step
     - impl.md
+    - journal.md
 ```
 
 You can add, remove, or reorder steps. Each step runs opencode in headless mode (`opencode run`).
@@ -1215,13 +1260,13 @@ When no discussions are attached, `{{DISCUSSIONS}}` is replaced with an empty st
 |---|---|---|
 | `task-create-spec.md` | `task create --interview` | Interactive back-and-forth to build `spec.md` |
 | `task-refine-spec.md` | `task refine` | Review spec for completeness, ask clarifying questions |
-| `task-write-impl-docs.md` | `task implement` (phase 1) | Read spec, write `impl.md`, `notes.md`, `files.md` |
-| `task-do-impl.md` | `task implement` (phase 2) | Read spec + impl docs, implement the feature |
-| `task-update-change-docs.md` | `task implement` (phase 3) | Use `git diff` to update `CHANGELOG.md` and `README.md`; auto-manage version numbers in `pyproject.toml` |
+| `task-write-impl-docs.md` | `task implement` (phase 1) | Read spec, write `impl.md`, `notes.md`, `files.md`; maintain `journal.md` with timestamped entries |
+| `task-do-impl.md` | `task implement` (phase 2) | Read spec + impl docs + journal; implement the feature; continue maintaining `journal.md` |
+| `task-update-change-docs.md` | `task implement` (phase 3) | Read journal for context; use `git diff` to update `CHANGELOG.md` and `README.md`; auto-manage version numbers in `pyproject.toml`; continue maintaining `journal.md` |
 | `populate-agents.md` | `bench populate agents` | AI prompt for scanning repos and populating `AGENTS.md` |
 | `discuss.md` | `discuss start` | Free-form conversation with summary generation |
 
-Note: The implementation phase prompts (`task-write-impl-docs.md`, `task-do-impl.md`, `task-update-change-docs.md`) do **not** have a `{{DISCUSSIONS}}` placeholder. Those phases read `spec.md` directly, which already contains the discussion references injected during task creation or refinement.
+Note: The implementation phase prompts (`task-write-impl-docs.md`, `task-do-impl.md`, `task-update-change-docs.md`) do **not** have a `{{DISCUSSIONS}}` placeholder. Those phases read `spec.md` directly, which already contains the discussion references injected during task creation or refinement. These prompts do, however, include inline instructions for maintaining `journal.md` -- the journal reference (`task-journal: {task-dir}/journal.md`) and maintenance instructions are embedded directly in each prompt template string, not substituted via a placeholder.
 
 All prompt templates are freely editable. Paths within prompts are relative to the workbench directory.
 

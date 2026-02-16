@@ -36,6 +36,7 @@ SPEC_MD_FILENAME: str = "spec.md"
 FILES_MD_FILENAME: str = "files.md"
 IMPL_MD_FILENAME: str = "impl.md"
 NOTES_MD_FILENAME: str = "notes.md"
+JOURNAL_MD_FILENAME: str = "journal.md"
 TASK_PLACEHOLDER: str = "{{TASK}}"
 REPOSITORIES_PLACEHOLDER: str = "{{REPOSITORIES}}"
 POPULATE_AGENTS_PROMPT_FILENAME: str = "populate-agents.md"
@@ -128,6 +129,7 @@ task-spec: {task-dir}/spec.md
 task-implementation-plan: {task-dir}/impl.md
 task-notes: {task-dir}/notes.md
 files-list: {task-dir}/files.md
+task-journal: {task-dir}/journal.md
 
 {{REPOSITORIES}}
 
@@ -140,6 +142,12 @@ Tasks:
 - Put any miscellaneous notes in task-notes
 - Create a list of files that will be effected and place them in files-list
   - Organize the markdown file so that it is easy to understand how to find the files in question
+- Maintain task-journal throughout this phase as a chronological activity log:
+  - Each entry uses the format: `## YYYY-MM-DD HH:MM - [tag]` followed by freeform markdown content
+  - Type tags (use exactly these): `decision`, `issue`, `observation`, `deviation`, `rationale`
+  - Append entries chronologically (newest at the bottom)
+  - Write an entry whenever you make a significant decision, encounter a problem, notice something noteworthy about the codebase, or deviate from the spec
+  - Write entries continuously throughout the phase, not just at the end
 """
 
 TASK_DO_IMPL_TEMPLATE: str = """\
@@ -149,14 +157,22 @@ task-spec: {task-dir}/spec.md
 task-implementation-plan: {task-dir}/impl.md
 task-notes: {task-dir}/notes.md
 files-list: {task-dir}/files.md
+task-journal: {task-dir}/journal.md
 
 {{REPOSITORIES}}
 
 Tasks:
 
 - Read AGENTS.md
-- Read task-spec, task-implementation-plan, task-notes, files-list
+- Read task-spec, task-implementation-plan, task-notes, files-list, task-journal
 - Implement the feature as described by task-implementation-plan
+- Maintain task-journal throughout this phase as a chronological activity log:
+  - Read existing journal entries from the previous phase for context
+  - Continue appending new entries using the format: `## YYYY-MM-DD HH:MM - [tag]` followed by freeform markdown
+  - Type tags (use exactly these): `decision`, `issue`, `observation`, `deviation`, `rationale`
+  - Append entries chronologically (newest at the bottom)
+  - Write entries for decisions about code structure, problems encountered during coding, codebase observations, and any deviations from the implementation plan
+  - Write entries continuously throughout the phase, not just at the end
 """
 
 TASK_UPDATE_CHANGE_DOCS_TEMPLATE: str = """\
@@ -165,11 +181,13 @@ task-dir: ./bench/tasks/{{TASK}}
 task-spec: {task-dir}/spec.md
 task-implementation-plan: {task-dir}/impl.md
 task-notes: {task-dir}/notes.md
+task-journal: {task-dir}/journal.md
 
 {{REPOSITORIES}}
 
 Tasks:
 
+- Read task-journal for context from previous phases (this can inform more accurate changelog/readme content)
 - Within each repo:
     - Use git diff to discover uncommitted changes
     - If CHANGELOG.md exists:
@@ -193,6 +211,10 @@ Version Management:
 Notes:
 
 - Only read the top 200 lines of CHANGELOG.md
+- Continue maintaining task-journal throughout this phase:
+  - Append new entries using the format: `## YYYY-MM-DD HH:MM - [tag]` followed by freeform markdown
+  - Type tags (use exactly these): `decision`, `issue`, `observation`, `deviation`, `rationale`
+  - Write entries for notable decisions or observations made during the documentation update phase
 
 Templates:
 
@@ -296,18 +318,18 @@ DEFAULT_IMPLEMENTATION_FLOW_TEMPLATE: list[dict[str, str | list[str]]] = [
         "name": "Writing implementation docs",
         "prompt": TASK_WRITE_IMPL_DOCS_FILENAME,
         "required-files": [SPEC_MD_FILENAME],
-        "output-files": [IMPL_MD_FILENAME],
+        "output-files": [IMPL_MD_FILENAME, JOURNAL_MD_FILENAME],
     },
     {
         "name": "Implementing",
         "prompt": TASK_DO_IMPL_FILENAME,
-        "required-files": [SPEC_MD_FILENAME, IMPL_MD_FILENAME],
+        "required-files": [SPEC_MD_FILENAME, IMPL_MD_FILENAME, JOURNAL_MD_FILENAME],
         "output-files": [],
     },
     {
         "name": "Updating change docs",
         "prompt": TASK_UPDATE_CHANGE_DOCS_FILENAME,
-        "required-files": [SPEC_MD_FILENAME, IMPL_MD_FILENAME],
+        "required-files": [SPEC_MD_FILENAME, IMPL_MD_FILENAME, JOURNAL_MD_FILENAME],
         "output-files": [],
     },
 ]
@@ -769,6 +791,7 @@ def create_task_scaffold(
         - <tasks_dir>/<task_folder_name>/files.md
         - <tasks_dir>/<task_folder_name>/impl.md
         - <tasks_dir>/<task_folder_name>/notes.md
+        - <tasks_dir>/<task_folder_name>/journal.md
 
     Args:
         tasks_dir: The absolute path to the workbench's bench/tasks/ directory.
@@ -800,7 +823,12 @@ def create_task_scaffold(
     created.append(f"{task_folder_name}/{SPEC_MD_FILENAME}")
 
     # Create empty files
-    for filename in [FILES_MD_FILENAME, IMPL_MD_FILENAME, NOTES_MD_FILENAME]:
+    for filename in [
+        FILES_MD_FILENAME,
+        IMPL_MD_FILENAME,
+        NOTES_MD_FILENAME,
+        JOURNAL_MD_FILENAME,
+    ]:
         (task_dir / filename).write_text("")
         created.append(f"{task_folder_name}/{filename}")
 
@@ -852,6 +880,7 @@ def list_task_entries(tasks_dir: Path) -> list[dict[str, Any]]:
         - "has_spec": bool
         - "has_impl": bool
         - "has_files": bool
+        - "has_journal": bool
 
         Entries are returned in no guaranteed order; sorting is the service layer's responsibility.
     """
@@ -883,6 +912,9 @@ def list_task_entries(tasks_dir: Path) -> list[dict[str, Any]]:
                 "has_spec": task_file_exists_and_nonempty(entry, SPEC_MD_FILENAME),
                 "has_impl": task_file_exists_and_nonempty(entry, IMPL_MD_FILENAME),
                 "has_files": task_file_exists_and_nonempty(entry, FILES_MD_FILENAME),
+                "has_journal": task_file_exists_and_nonempty(
+                    entry, JOURNAL_MD_FILENAME
+                ),
                 "repos": raw_data.get("repos", []),
             }
         )

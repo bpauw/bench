@@ -454,6 +454,7 @@ def list_tasks(task_filter: TaskFilter) -> list[TaskEntry]:
                 has_spec=raw["has_spec"],
                 has_impl=raw["has_impl"],
                 has_files=raw["has_files"],
+                has_journal=raw["has_journal"],
                 repos=raw["repos"],
             )
         )

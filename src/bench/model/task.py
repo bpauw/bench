@@ -30,4 +30,5 @@ class TaskEntry(BaseModel):
     has_spec: bool = False
     has_impl: bool = False
     has_files: bool = False
+    has_journal: bool = False
     repos: list[str] = []

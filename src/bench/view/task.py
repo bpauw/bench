@@ -144,6 +144,7 @@ def display_task_list(tasks: list[TaskEntry], task_filter: TaskFilter) -> None:
     table.add_column("Spec")
     table.add_column("Impl")
     table.add_column("Files")
+    table.add_column("Journal")
 
     for entry in tasks:
         completed_str = entry.completed if entry.completed is not None else ""
@@ -151,6 +152,7 @@ def display_task_list(tasks: list[TaskEntry], task_filter: TaskFilter) -> None:
         spec_str = "[green]yes[/green]" if entry.has_spec else "[dim]-[/dim]"
         impl_str = "[green]yes[/green]" if entry.has_impl else "[dim]-[/dim]"
         files_str = "[green]yes[/green]" if entry.has_files else "[dim]-[/dim]"
+        journal_str = "[green]yes[/green]" if entry.has_journal else "[dim]-[/dim]"
 
         table.add_row(
             entry.name,
@@ -160,6 +162,7 @@ def display_task_list(tasks: list[TaskEntry], task_filter: TaskFilter) -> None:
             spec_str,
             impl_str,
             files_str,
+            journal_str,
         )
 
     console.print(table)
