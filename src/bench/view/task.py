@@ -59,6 +59,37 @@ def display_task_refine_start(task_name: str, folder_name: str) -> None:
     console.print()
 
 
+def display_task_refine_complete(task_name: str) -> None:
+    """Display a completion message after the refine session.
+
+    Args:
+        task_name: The task name.
+    """
+    console.print(f"[green]Refine session complete for task: {task_name}[/green]")
+
+
+def display_task_followup_start(task_name: str, folder_name: str) -> None:
+    """Display a message before launching the followup session.
+
+    Args:
+        task_name: The task name.
+        folder_name: The full task folder name.
+    """
+    console.print(
+        f"[cyan]Starting followup session for task: {task_name} ({folder_name})[/cyan]"
+    )
+    console.print()
+
+
+def display_task_followup_complete(task_name: str) -> None:
+    """Display a completion message after the followup session.
+
+    Args:
+        task_name: The task name.
+    """
+    console.print(f"[green]Followup session complete for task: {task_name}[/green]")
+
+
 def display_task_implement_start(
     task_name: str, folder_name: str, phase_names: list[str], total_phases: int
 ) -> None:

@@ -34,6 +34,7 @@ Bench manages git worktrees organized into **workbenches** -- isolated developme
   - [bench task](#bench-task)
     - [task create](#bench-task-create)
     - [task refine](#bench-task-refine)
+    - [task followup](#bench-task-followup)
     - [task implement](#bench-task-implement)
     - [task complete](#bench-task-complete)
     - [task list](#bench-task-list)
@@ -74,7 +75,7 @@ Bench manages git worktrees organized into **workbenches** -- isolated developme
 - **Python** ~=3.14.0
 - **Git** >= 2.11 (for `--porcelain=v2` status format and worktree support)
 - **[uv](https://docs.astral.sh/uv/)** for Python package management
-- **[opencode](https://opencode.ai)** AI coding agent CLI (for `task create --interview`, `task refine`, `task implement`, and `discuss start`)
+- **[opencode](https://opencode.ai)** AI coding agent CLI (for `task create --interview`, `task refine`, `task followup`, `task implement`, and `discuss start`)
 
 ---
 
@@ -142,7 +143,10 @@ bench task refine add-auth --add-discussion security-review
 # 10. Run the automated implementation pipeline (automatically scoped to task repos)
 bench task implement add-auth
 
-# 11. Mark the task as complete
+# 11. Do followup work if needed (bug fixes, refinements, review feedback)
+bench task followup add-auth
+
+# 12. Mark the task as complete
 bench task complete add-auth
 ```
 
@@ -190,11 +194,16 @@ Bench follows a structured development workflow:
                 └────────────────────┬────────────────────┘
                                      │
                             ┌────────▼────────┐
+                            │ task followup   │  Optional: bug fixes,
+                            │  (repeatable)   │  refinements, review feedback
+                            └────────┬────────┘
+                                     │
+                            ┌────────▼────────┐
                             │  task complete  │  Mark done
                             └─────────────────┘
 ```
 
-At any point during development, you can start free-form **discussion** sessions with the AI agent using `bench discuss start`. Discussions can later be attached to tasks using the `--add-discussion` option on `task create` or `task refine`, giving the AI agent context from prior conversations when working on the task.
+At any point during development, you can start free-form **discussion** sessions with the AI agent using `bench discuss start`. Discussions can later be attached to tasks using the `--add-discussion` option on `task create`, `task refine`, or `task followup`, giving the AI agent context from prior conversations when working on the task. After implementation, use `bench task followup` to do interactive follow-on work (bug fixes, refinements, addressing review feedback) without re-running the full pipeline.
 
 ---
 
@@ -220,6 +229,7 @@ Running `bench` with no subcommand defaults to `bench status`.
 | `bench workbench list` | ROOT / WORKBENCH / WITHIN_ROOT | List all workbenches with status |
 | `bench task create` | WORKBENCH | Create a task with scaffold files |
 | `bench task refine` | WORKBENCH | Interactive AI spec refinement |
+| `bench task followup` | WORKBENCH | Interactive follow-on work on an implemented task |
 | `bench task implement` | WORKBENCH | Multi-phase automated AI implementation |
 | `bench task complete` | WORKBENCH | Mark a task as complete |
 | `bench task list` | WORKBENCH | List tasks with progress indicators |
@@ -247,6 +257,7 @@ This command takes no options. To populate `AGENTS.md` with AI-generated project
   prompts/                   # Shared prompt templates copied into each new workbench
     task-create-spec.md      # Interactive spec creation prompt
     task-refine-spec.md      # Spec refinement prompt
+    task-followup.md         # Interactive followup prompt for post-implementation work
     task-write-impl-docs.md  # Implementation planning prompt
     task-do-impl.md          # Implementation execution prompt
     task-update-change-docs.md  # Change documentation and version management prompt
@@ -348,7 +359,7 @@ Synchronizes on-disk prompt template files with the latest built-in versions. Wh
 bench populate prompts
 ```
 
-This command takes no options or arguments. It checks every prompt file defined in the built-in template set (the same 7 files created by `bench init`) and reports the status of each one.
+This command takes no options or arguments. It checks every prompt file defined in the built-in template set (the same 8 files created by `bench init`) and reports the status of each one.
 
 **How it works:**
 
@@ -356,7 +367,7 @@ This command takes no options or arguments. It checks every prompt file defined 
 2. Resolves the prompts directory:
    - **ROOT mode:** `.bench/prompts/`
    - **WORKBENCH mode:** `bench/prompts/` (within the current workbench)
-3. For each of the 7 built-in prompt template files:
+3. For each of the 8 built-in prompt template files:
    - If the file **does not exist** on disk: creates it from the built-in template
    - If the file **exists but differs** from the built-in template: overwrites it with the latest version
    - If the file **already matches** the built-in template: leaves it untouched
@@ -370,13 +381,14 @@ Comparison uses trailing-whitespace-trimmed content, so trivial differences from
 Populating prompt files...
   Up to date  task-create-spec.md
   Up to date  task-refine-spec.md
+  Up to date  task-followup.md
   Up to date  task-write-impl-docs.md
   Up to date  task-do-impl.md
   Updated     task-update-change-docs.md
   Up to date  discuss.md
   Up to date  populate-agents.md
 
-1 updated, 0 created, 6 already up to date
+1 updated, 0 created, 7 already up to date
 ```
 
 **When to run:**
@@ -390,7 +402,7 @@ Populating prompt files...
 | Aspect | ROOT mode | WORKBENCH mode |
 |---|---|---|
 | Prompts directory | `.bench/prompts/` | `bench/prompts/` (workbench-local) |
-| Files checked | All 7 built-in templates | All 7 built-in templates |
+| Files checked | All 8 built-in templates | All 8 built-in templates |
 | Other files in directory | Ignored | Ignored |
 
 **Validation errors:**
@@ -852,9 +864,9 @@ bench task refine add-auth --add-discussion feedback --add-discussion edge-cases
 | `name` | positional | yes | Task name |
 | `--add-discussion` | string (repeatable) | no | Name of an existing discussion to attach to the task. Can be used multiple times. |
 
-Reads `task-refine-spec.md`, substitutes `{{TASK}}`, `{{REPOSITORIES}}`, and `{{DISCUSSIONS}}`, and launches opencode interactively. The AI reviews the existing spec for completeness and asks clarifying questions to improve it. If the task has repos specified in `task.yaml` (from `--only-repo` on `task create`), the `<repositories>` block is automatically filtered to include only those repos.
+Reads `task-refine-spec.md`, substitutes `{{TASK}}`, `{{REPOSITORIES}}`, and `{{DISCUSSIONS}}`, and launches opencode interactively. The AI reviews the existing spec for completeness and asks clarifying questions to improve it. If the task has repos specified in `task.yaml` (from `--only-repo` on `task create`), the `<repositories>` block is automatically filtered to include only those repos. When done, the AI tells the user they can close opencode.
 
-Requires `spec.md` to exist in the task folder.
+Requires `spec.md` to exist in the task folder. On successful exit (code 0), a green completion message is displayed: `Refine session complete for task: <name>`.
 
 **`--add-discussion` option:** Works the same as in `task create` -- attaches discussion files to provide additional context during refinement. Tab completion is supported for discussion names.
 
@@ -878,6 +890,50 @@ make sure to read these discussions:
 discussion: ./bench/discussions/20260210 - api-design.md
 discussion: ./bench/discussions/20260213 - security-review.md
 ```
+
+#### bench task followup
+
+Performs interactive follow-on work on an already-implemented task. This is the lightweight way to do bug fixes, small refinements, address review feedback, or any other follow-on work within the context of a task -- without re-running the full implementation pipeline.
+
+```bash
+bench task followup add-auth
+bench task followup add-auth --add-discussion code-review-feedback
+bench task followup add-auth --add-discussion feedback --add-discussion edge-cases
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | yes | Task name (tab completion filters to open, non-completed tasks) |
+| `--add-discussion` | string (repeatable) | no | Name of an existing discussion to include as additional context. Can be used multiple times. |
+
+**Prerequisites:** The task must have been through implementation. Specifically, `spec.md`, `impl.md`, and `journal.md` must all exist and be non-empty. If any of these files are missing or empty, the command produces an error explaining that the task must have been through implementation before followup.
+
+**How it works:**
+
+1. Validates the task exists and has the required files (`spec.md`, `impl.md`, `journal.md` -- all must be non-empty)
+2. Reads the `task-followup.md` prompt template and substitutes `{{TASK}}`, `{{REPOSITORIES}}`, and `{{DISCUSSIONS}}` placeholders
+3. Launches an interactive opencode session with the full task context (spec, implementation plan, notes, files list, journal)
+4. The AI agent reads all existing task documents, then asks the user what followup work is needed
+5. The AI makes whatever changes are needed and maintains `journal.md` throughout the session with timestamped entries
+6. When done, the AI tells the user they can close opencode
+
+**Journal maintenance:** The followup session continues the same `journal.md` activity log that was created during implementation. The AI reads existing journal entries for context and appends new entries for all significant actions, decisions, and observations made during the followup session. This preserves a continuous decision trail across both the original implementation and any followup work.
+
+**Discussion handling:** Unlike `task refine`, the followup command does **not** inject discussion references into `spec.md`. Post-implementation, the spec is considered finalized. Discussions provided via `--add-discussion` are included only in the ephemeral prompt sent to the AI agent (via the `{{DISCUSSIONS}}` placeholder in the template), giving the agent context from prior conversations without modifying the spec.
+
+If the task has repos specified in `task.yaml` (from `--only-repo` on `task create`), the `<repositories>` block is automatically filtered to include only those repos.
+
+On successful exit (code 0), a green completion message is displayed: `Followup session complete for task: <name>`. On non-zero exit, an error is displayed with the exit code.
+
+**Validation errors:**
+
+| Condition | Error |
+|---|---|
+| Not in workbench directory | `The 'task followup' command can only be run from a workbench directory.` |
+| Task not found | Standard task resolution error |
+| Missing/empty `spec.md`, `impl.md`, or `journal.md` | `Task "<name>" is missing or has empty <file>. The task must have been through implementation before followup.` |
+
+---
 
 #### bench task implement
 
@@ -939,7 +995,7 @@ How journal data flows across phases:
 | Phase 2 (Implementing) | Reads existing journal entries from phase 1 for context. Continues writing entries for decisions about code structure, problems encountered during coding, and deviations from the implementation plan. |
 | Phase 3 (Updating change docs) | Reads existing journal entries from phases 1 and 2 for context (this can inform more accurate changelog/readme content). Continues writing entries for notable decisions or observations during documentation updates. |
 
-The journal is purely an implementation-phase artifact -- there are no CLI commands to view or manage it directly. You can read `journal.md` in any task folder to review the AI's decision trail.
+The journal persists beyond the implementation phase -- `bench task followup` sessions also read and continue appending to `journal.md`, creating a continuous activity log across both implementation and any follow-on work. You can read `journal.md` in any task folder to review the full decision trail.
 
 **Phase 3 -- Updating change docs:**
 
@@ -1077,6 +1133,9 @@ bench task create my-task --add-discussion api-design
 
 # Or attach during refinement of an existing task
 bench task refine my-task --add-discussion api-design
+
+# Or attach during followup work on an implemented task
+bench task followup my-task --add-discussion code-review-feedback
 ```
 
 #### bench discuss list
@@ -1231,7 +1290,7 @@ Prompt templates are markdown files in `bench/prompts/` within each workbench. T
 |---|---|---|
 | `{{TASK}}` | Full task folder name (e.g., `20260208 - add-auth`) | Task prompts |
 | `{{REPOSITORIES}}` | A `<repositories>` block listing all repo directories from the workbench config | Task and discussion prompts |
-| `{{DISCUSSIONS}}` | Discussion reference block (when `--add-discussion` is used), or empty string | `task-create-spec.md`, `task-refine-spec.md` |
+| `{{DISCUSSIONS}}` | Discussion reference block (when `--add-discussion` is used), or empty string | `task-create-spec.md`, `task-refine-spec.md`, `task-followup.md` |
 | `{{DIRECTORIES}}` | List of directory paths to scan | `populate-agents.md` |
 | `{{EXISTING_DISCUSSIONS}}` | List of existing discussion names (for uniqueness enforcement) | `discuss.md` |
 
@@ -1260,13 +1319,14 @@ When no discussions are attached, `{{DISCUSSIONS}}` is replaced with an empty st
 |---|---|---|
 | `task-create-spec.md` | `task create --interview` | Interactive back-and-forth to build `spec.md` |
 | `task-refine-spec.md` | `task refine` | Review spec for completeness, ask clarifying questions |
+| `task-followup.md` | `task followup` | Interactive followup session with full task context; reads all task docs, asks user what followup work is needed, maintains `journal.md` |
 | `task-write-impl-docs.md` | `task implement` (phase 1) | Read spec, write `impl.md`, `notes.md`, `files.md`; maintain `journal.md` with timestamped entries |
 | `task-do-impl.md` | `task implement` (phase 2) | Read spec + impl docs + journal; implement the feature; continue maintaining `journal.md` |
 | `task-update-change-docs.md` | `task implement` (phase 3) | Read journal for context; use `git diff` to update `CHANGELOG.md` and `README.md`; auto-manage version numbers in `pyproject.toml`; continue maintaining `journal.md` |
 | `populate-agents.md` | `bench populate agents` | AI prompt for scanning repos and populating `AGENTS.md` |
 | `discuss.md` | `discuss start` | Free-form conversation with summary generation |
 
-Note: The implementation phase prompts (`task-write-impl-docs.md`, `task-do-impl.md`, `task-update-change-docs.md`) do **not** have a `{{DISCUSSIONS}}` placeholder. Those phases read `spec.md` directly, which already contains the discussion references injected during task creation or refinement. These prompts do, however, include inline instructions for maintaining `journal.md` -- the journal reference (`task-journal: {task-dir}/journal.md`) and maintenance instructions are embedded directly in each prompt template string, not substituted via a placeholder.
+Note: The implementation phase prompts (`task-write-impl-docs.md`, `task-do-impl.md`, `task-update-change-docs.md`) do **not** have a `{{DISCUSSIONS}}` placeholder. Those phases read `spec.md` directly, which already contains the discussion references injected during task creation or refinement. These prompts do, however, include inline instructions for maintaining `journal.md` -- the journal reference (`task-journal: {task-dir}/journal.md`) and maintenance instructions are embedded directly in each prompt template string, not substituted via a placeholder. The `task-followup.md` template does include a `{{DISCUSSIONS}}` placeholder (like `task-create-spec.md` and `task-refine-spec.md`), since followup discussions are only passed as ephemeral prompt context rather than injected into `spec.md`.
 
 All prompt templates are freely editable. Paths within prompts are relative to the workbench directory.
 
@@ -1352,7 +1412,7 @@ src/bench/
     status.py              # bench status
     source.py              # bench source {add,list,update,remove}
     workbench.py           # bench workbench {create,update,retire,delete,activate,list}
-    task.py                # bench task {create,refine,implement,complete,list}
+    task.py                # bench task {create,refine,followup,implement,complete,list}
     discuss.py             # bench discuss {start,list}
   model/
     __init__.py            # Re-exports all model classes
@@ -1374,7 +1434,7 @@ src/bench/
     opencode.py            # run_opencode_prompt()
     source.py              # add/list/update/remove_source()
     workbench.py           # create/update/retire/delete/activate/list workbench functions
-    task.py                # create/complete/list/refine/implement task functions
+    task.py                # create/complete/list/refine/followup/implement task functions
     discuss.py             # start_discussion(), list_discussions()
     _validation.py         # parse_repo_arg(), validate_repo() (private helpers)
   repository/

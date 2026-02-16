@@ -1,5 +1,16 @@
 # Changelog
 
+## Version 0.12.0
+
+### New
+
+- Added `bench task followup` command for interactive follow-on work on implemented tasks. Launches an AI session with full task context (spec, implementation plan, notes, files list, journal) and supports `--add-discussion` for additional context. The AI maintains the task journal throughout the session.
+
+### Updated
+
+- `bench task refine` now displays a completion summary message after the session exits successfully
+- `bench task refine` prompt template now instructs the AI to tell the user when they can close opencode, matching the existing behavior of `bench task create`
+
 ## Version 0.11.0
 
 ### New

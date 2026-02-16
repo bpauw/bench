@@ -8,10 +8,13 @@ from bench.repository.filesystem import (
     BENCH_SUBDIR_NAME,
     DISCUSSIONS_DIR_NAME,
     DISCUSSIONS_PLACEHOLDER,
+    IMPL_MD_FILENAME,
+    JOURNAL_MD_FILENAME,
     PROMPTS_DIR_NAME,
     REPOSITORIES_PLACEHOLDER,
     SPEC_MD_FILENAME,
     TASK_CREATE_SPEC_FILENAME,
+    TASK_FOLLOWUP_FILENAME,
     TASK_PLACEHOLDER,
     TASK_REFINE_SPEC_FILENAME,
     TASKS_DIR_NAME,
@@ -619,3 +622,131 @@ def validate_task_phase_outputs(
             raise ValueError(
                 f"Phase '{phase.name}' completed but {filename} was not created or is empty."
             )
+
+
+def resolve_task_for_followup(task_name: str) -> dict[str, str]:
+    """Resolve a task name and validate it is ready for followup.
+
+    Performs mode enforcement, task folder resolution, and validates that
+    spec.md, impl.md, and journal.md all exist and are non-empty (indicating
+    the task has been through implementation).
+
+    Args:
+        task_name: The task name (e.g., "add-auth").
+
+    Returns:
+        A dict with "name" and "folder_name" keys.
+
+    Raises:
+        ValueError: If mode is not WORKBENCH, task not found, or required
+            files are missing/empty.
+    """
+    # Phase 1: Mode enforcement
+    context = detect_mode(Path.cwd())
+
+    if context.mode == BenchMode.UNINITIALIZED:
+        raise ValueError(
+            "This folder is uninitialized. Run 'bench init' to create a bench project first."
+        )
+
+    if context.mode != BenchMode.WORKBENCH:
+        raise ValueError(
+            "The 'task followup' command can only be run from a workbench directory."
+        )
+
+    # Phase 2: Resolve the tasks directory path
+    tasks_dir = context.cwd / BENCH_SUBDIR_NAME / TASKS_DIR_NAME
+
+    # Phase 3: Find the task folder
+    task_folder_path, folder_name = find_task_folder(tasks_dir, task_name)
+
+    # Phase 4: Validate required files exist and are non-empty
+    required_files = {
+        SPEC_MD_FILENAME: "spec.md",
+        IMPL_MD_FILENAME: "impl.md",
+        JOURNAL_MD_FILENAME: "journal.md",
+    }
+    for filename, display_name in required_files.items():
+        if not task_file_exists_and_nonempty(task_folder_path, filename):
+            raise ValueError(
+                f'Task "{task_name}" is missing or has empty {display_name}. '
+                f"The task must have been through implementation before followup."
+            )
+
+    # Phase 5: Return metadata
+    return {"name": task_name, "folder_name": folder_name}
+
+
+def run_task_followup(
+    task_folder_name: str,
+    discussion_names: list[str] | None = None,
+) -> int:
+    """Launch an interactive opencode session for followup work on a task.
+
+    Reads the task-followup.md prompt template, substitutes the
+    {{TASK}}, {{REPOSITORIES}}, and {{DISCUSSIONS}} placeholders, and runs
+    opencode interactively.
+
+    Args:
+        task_folder_name: The full task folder name (e.g., "20260208 - add-auth").
+        discussion_names: Optional list of discussion names for prompt context.
+
+    Returns:
+        The exit code from the opencode process.
+
+    Raises:
+        ValueError: If mode is not WORKBENCH.
+        RuntimeError: If opencode is not installed.
+        FileNotFoundError: If the prompt template is missing.
+    """
+    # Phase 1: Mode enforcement
+    context = detect_mode(Path.cwd())
+
+    if context.mode == BenchMode.UNINITIALIZED:
+        raise ValueError(
+            "This folder is uninitialized. Run 'bench init' to create a bench project first."
+        )
+
+    if context.mode != BenchMode.WORKBENCH:
+        raise ValueError(
+            "The 'task followup' command can only be run from a workbench directory."
+        )
+
+    assert context.base_config is not None
+    assert context.workbench_config is not None
+
+    # Phase 2: Load workbench config (already available via context)
+
+    # Phase 3: Load task repos for prompt filtering
+    tasks_dir = context.cwd / BENCH_SUBDIR_NAME / TASKS_DIR_NAME
+    task_folder = tasks_dir / task_folder_name
+    raw_task_data = load_task_yaml(task_folder)
+    task_repos = raw_task_data.get("repos", [])
+
+    # Phase 4: Build discussion block (without injecting into spec.md)
+    discussion_block = ""
+    if discussion_names:
+        discussions_dir = context.cwd / BENCH_SUBDIR_NAME / DISCUSSIONS_DIR_NAME
+        discussion_paths = resolve_discussion_paths(discussions_dir, discussion_names)
+        discussion_block = build_discussion_block(discussion_paths)
+
+    # Phase 5: Read the task-followup.md prompt template
+    prompt_path = (
+        context.cwd / BENCH_SUBDIR_NAME / PROMPTS_DIR_NAME / TASK_FOLLOWUP_FILENAME
+    )
+
+    # Phase 6: Substitute placeholders
+    raw_prompt = read_prompt_file(prompt_path)
+    prompt_text = _substitute_prompt_placeholders(
+        raw_prompt,
+        task_folder_name,
+        context.workbench_config,
+        discussion_block,
+        task_repos=task_repos or None,
+    )
+
+    # Phase 7: Launch interactive opencode session
+    model = context.base_config.models.task
+
+    # Phase 8: Return exit code
+    return run_prompt_interactive(prompt_text, model, context.cwd)

@@ -69,6 +69,7 @@ TASK_REFINE_SPEC_FILENAME: str = "task-refine-spec.md"
 TASK_WRITE_IMPL_DOCS_FILENAME: str = "task-write-impl-docs.md"
 TASK_DO_IMPL_FILENAME: str = "task-do-impl.md"
 TASK_UPDATE_CHANGE_DOCS_FILENAME: str = "task-update-change-docs.md"
+TASK_FOLLOWUP_FILENAME: str = "task-followup.md"
 
 # Prompt seed templates
 TASK_CREATE_SPEC_TEMPLATE: str = """\
@@ -120,6 +121,7 @@ Tasks:
     - Spend a lot of effort on this and try very hard to make sure the spec has everything it needs
   - If it is not specific enough, ask the user questions until you have enough information
     - Once you have all the required information, update task-spec with the clarified spec details
+- Once all interactions are complete, let the user know they can exit opencode
 """
 
 TASK_WRITE_IMPL_DOCS_TEMPLATE: str = """\
@@ -240,6 +242,36 @@ Changelog:
 ```
 """
 
+TASK_FOLLOWUP_TEMPLATE: str = """\
+agents.md: ./AGENTS.md
+task-dir: ./bench/tasks/{{TASK}}
+task-spec: {task-dir}/spec.md
+task-implementation-plan: {task-dir}/impl.md
+task-notes: {task-dir}/notes.md
+files-list: {task-dir}/files.md
+task-journal: {task-dir}/journal.md
+
+{{REPOSITORIES}}
+
+{{DISCUSSIONS}}
+
+Tasks:
+
+- Read AGENTS.md
+- Read task-spec, task-implementation-plan, task-notes, files-list, task-journal to understand the full context of this task
+- Ask the user what followup work they need done
+  - This could be bug fixes, refinements, addressing review feedback, or any other follow-on work related to this task
+  - Make whatever changes are needed based on the user's description
+- Maintain task-journal throughout this session as a chronological activity log:
+  - Read existing journal entries for context
+  - Continue appending new entries using the format: `## YYYY-MM-DD HH:MM - [tag]` followed by freeform markdown
+  - Type tags (use exactly these): `decision`, `issue`, `observation`, `deviation`, `rationale`
+  - Append entries chronologically (newest at the bottom)
+  - Write entries for all significant actions taken, decisions made, problems encountered, and deviations from the original implementation
+  - Write entries continuously throughout the session, not just at the end
+- Once all followup work is complete, let the user know they can close opencode
+"""
+
 DISCUSS_PROMPT_TEMPLATE: str = """\
 discussions-dir: ./bench/discussions
 
@@ -341,6 +373,7 @@ PROMPT_SEED_FILES: dict[str, str] = {
     TASK_WRITE_IMPL_DOCS_FILENAME: TASK_WRITE_IMPL_DOCS_TEMPLATE,
     TASK_DO_IMPL_FILENAME: TASK_DO_IMPL_TEMPLATE,
     TASK_UPDATE_CHANGE_DOCS_FILENAME: TASK_UPDATE_CHANGE_DOCS_TEMPLATE,
+    TASK_FOLLOWUP_FILENAME: TASK_FOLLOWUP_TEMPLATE,
     DISCUSS_PROMPT_FILENAME: DISCUSS_PROMPT_TEMPLATE,
     POPULATE_AGENTS_PROMPT_FILENAME: POPULATE_AGENTS_PROMPT_TEMPLATE,
 }

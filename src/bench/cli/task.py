@@ -11,7 +11,9 @@ from bench.service.task import (
     list_tasks,
     refine_task,
     resolve_task,
+    resolve_task_for_followup,
     resolve_task_for_implement,
+    run_task_followup,
     run_task_interview,
     run_task_phase,
     validate_task_phase,
@@ -21,11 +23,14 @@ from bench.view.task import (
     display_task_completed,
     display_task_created,
     display_task_error,
+    display_task_followup_complete,
+    display_task_followup_start,
     display_task_implement_complete,
     display_task_implement_phase_complete,
     display_task_implement_phase_start,
     display_task_implement_start,
     display_task_list,
+    display_task_refine_complete,
     display_task_refine_start,
 )
 
@@ -139,12 +144,49 @@ def task_refine(
         if exit_code != 0:
             display_task_error(f"opencode exited with code {exit_code}")
             raise typer.Exit(code=exit_code)
+        display_task_refine_complete(name)
     except (ValueError, RuntimeError, FileNotFoundError) as e:
         display_task_error(str(e))
         raise typer.Exit(code=1)
 
 
 task_app.command("refine")(task_refine)
+
+
+def task_followup(
+    name: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the task to follow up on",
+            autocompletion=_complete_task_name,
+        ),
+    ],
+    add_discussion: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--add-discussion",
+            help="Name of an existing discussion to include as context",
+            autocompletion=_complete_discussion_name,
+        ),
+    ] = None,
+) -> None:
+    """Perform followup work on an implemented task via an interactive AI session."""
+    try:
+        summary = resolve_task_for_followup(name)
+        display_task_followup_start(name, str(summary["folder_name"]))
+        exit_code = run_task_followup(
+            str(summary["folder_name"]), discussion_names=add_discussion
+        )
+        if exit_code != 0:
+            display_task_error(f"opencode exited with code {exit_code}")
+            raise typer.Exit(code=exit_code)
+        display_task_followup_complete(name)
+    except (ValueError, RuntimeError, FileNotFoundError) as e:
+        display_task_error(str(e))
+        raise typer.Exit(code=1)
+
+
+task_app.command("followup")(task_followup)
 
 
 def task_implement(
