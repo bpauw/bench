@@ -4,6 +4,8 @@ A CLI orchestration tool for agentic coding workflows.
 
 Bench manages git worktrees organized into **workbenches** -- isolated development environments where multiple repository worktrees are grouped together for coordinated work on coding tasks. It integrates with an external AI coding agent ([opencode](https://opencode.ai)) to provide interactive spec-writing sessions, automated multi-phase task implementation, and free-form discussion sessions.
 
+> Please note that this project is closed to anonymous contributions
+
 ---
 
 ## Table of Contents
