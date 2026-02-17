@@ -8,6 +8,7 @@
 
 ### Updated
 
+- Reordered `bench task --help` subcommand listing so `followup` appears after `implement`, reflecting the natural workflow order: create, refine, implement, followup, complete, list
 - `bench task refine` now displays a completion summary message after the session exits successfully
 - `bench task refine` prompt template now instructs the AI to tell the user when they can close opencode, matching the existing behavior of `bench task create`
 

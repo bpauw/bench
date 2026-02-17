@@ -150,6 +150,7 @@ Tasks:
   - Append entries chronologically (newest at the bottom)
   - Write an entry whenever you make a significant decision, encounter a problem, notice something noteworthy about the codebase, or deviate from the spec
   - Write entries continuously throughout the phase, not just at the end
+- This is a non-interactive sesssion, so don't ask the user any questions
 """
 
 TASK_DO_IMPL_TEMPLATE: str = """\
@@ -175,6 +176,7 @@ Tasks:
   - Append entries chronologically (newest at the bottom)
   - Write entries for decisions about code structure, problems encountered during coding, codebase observations, and any deviations from the implementation plan
   - Write entries continuously throughout the phase, not just at the end
+- This is a non-interactive sesssion, so don't ask the user any questions
 """
 
 TASK_UPDATE_CHANGE_DOCS_TEMPLATE: str = """\
@@ -217,6 +219,7 @@ Notes:
   - Append new entries using the format: `## YYYY-MM-DD HH:MM - [tag]` followed by freeform markdown
   - Type tags (use exactly these): `decision`, `issue`, `observation`, `deviation`, `rationale`
   - Write entries for notable decisions or observations made during the documentation update phase
+- This is a non-interactive sesssion, so don't ask the user any questions
 
 Templates:
 

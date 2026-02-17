@@ -34,8 +34,8 @@ Bench manages git worktrees organized into **workbenches** -- isolated developme
   - [bench task](#bench-task)
     - [task create](#bench-task-create)
     - [task refine](#bench-task-refine)
-    - [task followup](#bench-task-followup)
     - [task implement](#bench-task-implement)
+    - [task followup](#bench-task-followup)
     - [task complete](#bench-task-complete)
     - [task list](#bench-task-list)
   - [bench discuss](#bench-discuss)
@@ -229,8 +229,8 @@ Running `bench` with no subcommand defaults to `bench status`.
 | `bench workbench list` | ROOT / WORKBENCH / WITHIN_ROOT | List all workbenches with status |
 | `bench task create` | WORKBENCH | Create a task with scaffold files |
 | `bench task refine` | WORKBENCH | Interactive AI spec refinement |
-| `bench task followup` | WORKBENCH | Interactive follow-on work on an implemented task |
 | `bench task implement` | WORKBENCH | Multi-phase automated AI implementation |
+| `bench task followup` | WORKBENCH | Interactive follow-on work on an implemented task |
 | `bench task complete` | WORKBENCH | Mark a task as complete |
 | `bench task list` | WORKBENCH | List tasks with progress indicators |
 | `bench discuss start` | WORKBENCH | Start a free-form AI discussion |
@@ -891,50 +891,6 @@ discussion: ./bench/discussions/20260210 - api-design.md
 discussion: ./bench/discussions/20260213 - security-review.md
 ```
 
-#### bench task followup
-
-Performs interactive follow-on work on an already-implemented task. This is the lightweight way to do bug fixes, small refinements, address review feedback, or any other follow-on work within the context of a task -- without re-running the full implementation pipeline.
-
-```bash
-bench task followup add-auth
-bench task followup add-auth --add-discussion code-review-feedback
-bench task followup add-auth --add-discussion feedback --add-discussion edge-cases
-```
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `name` | positional | yes | Task name (tab completion filters to open, non-completed tasks) |
-| `--add-discussion` | string (repeatable) | no | Name of an existing discussion to include as additional context. Can be used multiple times. |
-
-**Prerequisites:** The task must have been through implementation. Specifically, `spec.md`, `impl.md`, and `journal.md` must all exist and be non-empty. If any of these files are missing or empty, the command produces an error explaining that the task must have been through implementation before followup.
-
-**How it works:**
-
-1. Validates the task exists and has the required files (`spec.md`, `impl.md`, `journal.md` -- all must be non-empty)
-2. Reads the `task-followup.md` prompt template and substitutes `{{TASK}}`, `{{REPOSITORIES}}`, and `{{DISCUSSIONS}}` placeholders
-3. Launches an interactive opencode session with the full task context (spec, implementation plan, notes, files list, journal)
-4. The AI agent reads all existing task documents, then asks the user what followup work is needed
-5. The AI makes whatever changes are needed and maintains `journal.md` throughout the session with timestamped entries
-6. When done, the AI tells the user they can close opencode
-
-**Journal maintenance:** The followup session continues the same `journal.md` activity log that was created during implementation. The AI reads existing journal entries for context and appends new entries for all significant actions, decisions, and observations made during the followup session. This preserves a continuous decision trail across both the original implementation and any followup work.
-
-**Discussion handling:** Unlike `task refine`, the followup command does **not** inject discussion references into `spec.md`. Post-implementation, the spec is considered finalized. Discussions provided via `--add-discussion` are included only in the ephemeral prompt sent to the AI agent (via the `{{DISCUSSIONS}}` placeholder in the template), giving the agent context from prior conversations without modifying the spec.
-
-If the task has repos specified in `task.yaml` (from `--only-repo` on `task create`), the `<repositories>` block is automatically filtered to include only those repos.
-
-On successful exit (code 0), a green completion message is displayed: `Followup session complete for task: <name>`. On non-zero exit, an error is displayed with the exit code.
-
-**Validation errors:**
-
-| Condition | Error |
-|---|---|
-| Not in workbench directory | `The 'task followup' command can only be run from a workbench directory.` |
-| Task not found | Standard task resolution error |
-| Missing/empty `spec.md`, `impl.md`, or `journal.md` | `Task "<name>" is missing or has empty <file>. The task must have been through implementation before followup.` |
-
----
-
 #### bench task implement
 
 Runs the configurable multi-phase implementation pipeline using headless AI agent sessions.
@@ -1035,6 +991,50 @@ Task "add-auth" implementation complete (3 phases executed)
 ```
 
 See [Implementation Flow](#implementation-flow) for customization details.
+
+#### bench task followup
+
+Performs interactive follow-on work on an already-implemented task. This is the lightweight way to do bug fixes, small refinements, address review feedback, or any other follow-on work within the context of a task -- without re-running the full implementation pipeline.
+
+```bash
+bench task followup add-auth
+bench task followup add-auth --add-discussion code-review-feedback
+bench task followup add-auth --add-discussion feedback --add-discussion edge-cases
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | positional | yes | Task name (tab completion filters to open, non-completed tasks) |
+| `--add-discussion` | string (repeatable) | no | Name of an existing discussion to include as additional context. Can be used multiple times. |
+
+**Prerequisites:** The task must have been through implementation. Specifically, `spec.md`, `impl.md`, and `journal.md` must all exist and be non-empty. If any of these files are missing or empty, the command produces an error explaining that the task must have been through implementation before followup.
+
+**How it works:**
+
+1. Validates the task exists and has the required files (`spec.md`, `impl.md`, `journal.md` -- all must be non-empty)
+2. Reads the `task-followup.md` prompt template and substitutes `{{TASK}}`, `{{REPOSITORIES}}`, and `{{DISCUSSIONS}}` placeholders
+3. Launches an interactive opencode session with the full task context (spec, implementation plan, notes, files list, journal)
+4. The AI agent reads all existing task documents, then asks the user what followup work is needed
+5. The AI makes whatever changes are needed and maintains `journal.md` throughout the session with timestamped entries
+6. When done, the AI tells the user they can close opencode
+
+**Journal maintenance:** The followup session continues the same `journal.md` activity log that was created during implementation. The AI reads existing journal entries for context and appends new entries for all significant actions, decisions, and observations made during the followup session. This preserves a continuous decision trail across both the original implementation and any followup work.
+
+**Discussion handling:** Unlike `task refine`, the followup command does **not** inject discussion references into `spec.md`. Post-implementation, the spec is considered finalized. Discussions provided via `--add-discussion` are included only in the ephemeral prompt sent to the AI agent (via the `{{DISCUSSIONS}}` placeholder in the template), giving the agent context from prior conversations without modifying the spec.
+
+If the task has repos specified in `task.yaml` (from `--only-repo` on `task create`), the `<repositories>` block is automatically filtered to include only those repos.
+
+On successful exit (code 0), a green completion message is displayed: `Followup session complete for task: <name>`. On non-zero exit, an error is displayed with the exit code.
+
+**Validation errors:**
+
+| Condition | Error |
+|---|---|
+| Not in workbench directory | `The 'task followup' command can only be run from a workbench directory.` |
+| Task not found | Standard task resolution error |
+| Missing/empty `spec.md`, `impl.md`, or `journal.md` | `Task "<name>" is missing or has empty <file>. The task must have been through implementation before followup.` |
+
+---
 
 #### bench task complete
 
@@ -1251,7 +1251,7 @@ The `models` section in `base-config.yaml` configures which AI models the coding
 
 | Field | Default | Description |
 |---|---|---|
-| `models.task` | `anthropic/claude-opus-4-6` | Model for task operations (create --interview, refine, implement) |
+| `models.task` | `anthropic/claude-opus-4-6` | Model for task operations (create --interview, refine, implement, followup) |
 | `models.discuss` | `anthropic/claude-opus-4-6` | Model for discussion sessions |
 
 The `Models` configuration is designed to be extensible -- additional fields (e.g., `planning`, `code_review`) can be added as needed.
@@ -1412,7 +1412,7 @@ src/bench/
     status.py              # bench status
     source.py              # bench source {add,list,update,remove}
     workbench.py           # bench workbench {create,update,retire,delete,activate,list}
-    task.py                # bench task {create,refine,followup,implement,complete,list}
+    task.py                # bench task {create,refine,implement,followup,complete,list}
     discuss.py             # bench discuss {start,list}
   model/
     __init__.py            # Re-exports all model classes
@@ -1434,7 +1434,7 @@ src/bench/
     opencode.py            # run_opencode_prompt()
     source.py              # add/list/update/remove_source()
     workbench.py           # create/update/retire/delete/activate/list workbench functions
-    task.py                # create/complete/list/refine/followup/implement task functions
+    task.py                # create/complete/list/refine/implement/followup task functions
     discuss.py             # start_discussion(), list_discussions()
     _validation.py         # parse_repo_arg(), validate_repo() (private helpers)
   repository/
