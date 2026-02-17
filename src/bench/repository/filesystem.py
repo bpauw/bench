@@ -299,7 +299,8 @@ When the user indicates the conversation is complete (e.g., says "done", "that's
      - Key decisions or conclusions reached
      - Any action items or follow-ups identified
      - Important context or reasoning discussed
-3. Let the user know the summary has been saved and they can exit opencode
+3. Ask the user if they would like to save the discussion to a file
+4. Let the user know the summary has been saved and they can exit opencode
 """
 
 POPULATE_AGENTS_PROMPT_TEMPLATE: str = """\
