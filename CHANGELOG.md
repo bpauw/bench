@@ -1,5 +1,21 @@
 # Changelog
 
+## Version 0.14.0
+
+### New
+
+- Added `--active` and `--inactive` filter flags to `bench workbench list` for filtering workbenches by status. The flags are mutually exclusive. Default behavior (no flags) is unchanged and shows all workbenches.
+- Added `--open` flag to `bench task list` for explicitly requesting only open tasks
+- Added `WorkbenchFilter` enum to the model layer, following the same pattern as `TaskFilter`
+- Added filter-aware empty-state messages to `bench workbench list` (e.g., "No active workbenches." when filtering by active)
+
+### Updated
+
+- Changed `bench task list` default behavior from showing only open tasks to showing all tasks (open + completed). Users who relied on the previous default should now use `--open` explicitly.
+- Removed the `--all` flag from `bench task list` since showing all tasks is now the default
+- Improved the implementation prompt template to guide the AI agent to only read source files when needed, reducing unnecessary file reads during implementation
+- Added a `## Validation` section to the spec template for structured validation criteria
+
 ## Version 0.13.0
 
 ### Updated

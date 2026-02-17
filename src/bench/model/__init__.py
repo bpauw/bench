@@ -6,7 +6,7 @@ from bench.model.mode import BenchMode
 from bench.model.opencode import OpenCodeResult
 from bench.model.source import Source, SourceRepo
 from bench.model.task import TaskConfig, TaskEntry, TaskFilter
-from bench.model.workbench import WorkbenchEntry, WorkbenchStatus
+from bench.model.workbench import WorkbenchEntry, WorkbenchFilter, WorkbenchStatus
 
 __all__ = [
     "BaseConfig",
@@ -26,5 +26,6 @@ __all__ = [
     "TaskFilter",
     "WorkbenchConfig",
     "WorkbenchEntry",
+    "WorkbenchFilter",
     "WorkbenchStatus",
 ]

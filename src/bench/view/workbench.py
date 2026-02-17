@@ -1,9 +1,15 @@
 from rich.console import Console
 from rich.table import Table
 
-from bench.model import WorkbenchEntry, WorkbenchStatus
+from bench.model import WorkbenchEntry, WorkbenchFilter, WorkbenchStatus
 
 console = Console()
+
+_WORKBENCH_EMPTY_MESSAGES: dict[WorkbenchFilter, str] = {
+    WorkbenchFilter.ACTIVE: "No active workbenches.",
+    WorkbenchFilter.INACTIVE: "No inactive workbenches.",
+    WorkbenchFilter.ALL: "No workbenches defined. Use 'bench workbench create' to create one.",
+}
 
 
 def display_workbench_created(summary: dict[str, object]) -> None:
@@ -99,19 +105,21 @@ def display_workbench_deleted(summary: dict[str, object]) -> None:
         console.print("  Branches deleted: [dim]none[/dim]")
 
 
-def display_workbench_list(workbenches: list[WorkbenchEntry]) -> None:
-    """Display a table of workbenches or an empty-state message.
+def display_workbench_list(
+    workbenches: list[WorkbenchEntry], workbench_filter: WorkbenchFilter
+) -> None:
+    """Display a table of workbenches or an appropriate empty-state message.
 
     Active workbenches are listed first (sorted by name), then inactive
     workbenches (sorted by name).
 
     Args:
         workbenches: The list of WorkbenchEntry models to display.
+        workbench_filter: The active filter, used to select the empty-state message.
     """
     if not workbenches:
-        console.print(
-            "[dim]No workbenches defined. Use 'bench workbench create' to create one.[/dim]"
-        )
+        message = _WORKBENCH_EMPTY_MESSAGES[workbench_filter]
+        console.print(f"[dim]{message}[/dim]")
         return
 
     table = Table()

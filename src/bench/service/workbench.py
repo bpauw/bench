@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from bench.model import BenchMode, WorkbenchEntry
+from bench.model import BenchMode, WorkbenchEntry, WorkbenchFilter, WorkbenchStatus
 from bench.model.source import SourceRepo
 from bench.repository import (
     BASE_CONFIG_FILENAME,
@@ -818,8 +818,11 @@ def activate_workbench(workbench_name: str) -> dict[str, object]:
     }
 
 
-def list_workbenches() -> list[WorkbenchEntry]:
-    """List all workbenches from the base config.
+def list_workbenches(workbench_filter: WorkbenchFilter) -> list[WorkbenchEntry]:
+    """List workbenches from the base config, optionally filtered by status.
+
+    Args:
+        workbench_filter: Which workbenches to include (ACTIVE, INACTIVE, or ALL).
 
     Returns:
         A list of WorkbenchEntry models from the base config.
@@ -836,6 +839,12 @@ def list_workbenches() -> list[WorkbenchEntry]:
             "Run 'bench init' to create a bench project first."
         )
 
-    # Phase 2: Return workbenches from base config
+    # Phase 2: Return workbenches from base config, filtered by status
     assert context.base_config is not None
-    return context.base_config.workbenches
+    workbenches = context.base_config.workbenches
+
+    if workbench_filter == WorkbenchFilter.ACTIVE:
+        return [w for w in workbenches if w.status == WorkbenchStatus.ACTIVE]
+    elif workbench_filter == WorkbenchFilter.INACTIVE:
+        return [w for w in workbenches if w.status == WorkbenchStatus.INACTIVE]
+    return workbenches

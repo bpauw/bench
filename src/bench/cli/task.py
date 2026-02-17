@@ -286,9 +286,9 @@ task_app.command("complete")(task_complete_cmd)
 
 
 def task_list(
-    all_tasks: Annotated[
+    open_tasks: Annotated[
         bool,
-        typer.Option("--all", help="Show all tasks (including completed)"),
+        typer.Option("--open", help="Show only open tasks"),
     ] = False,
     completed: Annotated[
         bool,
@@ -297,16 +297,16 @@ def task_list(
 ) -> None:
     """List tasks in the current workbench."""
     try:
-        if all_tasks and completed:
-            display_task_error("--all and --completed are mutually exclusive.")
+        if open_tasks and completed:
+            display_task_error("--open and --completed are mutually exclusive.")
             raise typer.Exit(code=1)
 
-        if all_tasks:
-            task_filter = TaskFilter.ALL
+        if open_tasks:
+            task_filter = TaskFilter.OPEN
         elif completed:
             task_filter = TaskFilter.COMPLETED
         else:
-            task_filter = TaskFilter.OPEN
+            task_filter = TaskFilter.ALL
 
         tasks = list_tasks(task_filter)
         display_task_list(tasks, task_filter)

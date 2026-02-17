@@ -226,13 +226,13 @@ Running `bench` with no subcommand defaults to `bench status`.
 | `bench workbench retire` | ROOT | Retire a workbench (preserves metadata) |
 | `bench workbench delete` | ROOT | Permanently delete a workbench and all its data |
 | `bench workbench activate` | ROOT | Reactivate a retired workbench |
-| `bench workbench list` | ROOT / WORKBENCH / WITHIN_ROOT | List all workbenches with status |
+| `bench workbench list` | ROOT / WORKBENCH / WITHIN_ROOT | List workbenches with optional status filtering |
 | `bench task create` | WORKBENCH | Create a task with scaffold files |
 | `bench task refine` | WORKBENCH | Interactive AI spec refinement |
 | `bench task implement` | WORKBENCH | Multi-phase automated AI implementation |
 | `bench task followup` | WORKBENCH | Interactive follow-on work on an implemented task |
 | `bench task complete` | WORKBENCH | Mark a task as complete |
-| `bench task list` | WORKBENCH | List tasks with progress indicators |
+| `bench task list` | WORKBENCH | List tasks with optional open/completed filtering |
 | `bench discuss start` | WORKBENCH | Start a free-form AI discussion |
 | `bench discuss list` | WORKBENCH | List past discussions |
 
@@ -757,13 +757,20 @@ No confirmation needed -- activation is non-destructive. Tab completion only sug
 
 #### bench workbench list
 
-Lists all workbenches in the current bench project, displayed as a Rich table.
+Lists workbenches in the current bench project, displayed as a Rich table. Supports optional filtering by status.
 
 ```bash
-bench workbench list
+bench workbench list                # all workbenches (default)
+bench workbench list --active       # only active workbenches
+bench workbench list --inactive     # only inactive workbenches
 ```
 
-This command takes no arguments or flags. It always shows all workbenches, grouped by status.
+| Option | Description |
+|---|---|
+| `--active` | Show only active workbenches |
+| `--inactive` | Show only inactive workbenches |
+
+`--active` and `--inactive` are mutually exclusive. If both are provided, the command displays an error and exits with code 1. When neither flag is specified, all workbenches are shown (active + inactive).
 
 **Table columns:**
 
@@ -774,9 +781,9 @@ This command takes no arguments or flags. It always shows all workbenches, group
 | Git Branch | The git branch used for worktrees |
 | Status | `active` (green) or `inactive` (dimmed) |
 
-**Ordering:** Active workbenches are listed first (sorted alphabetically by name), followed by inactive workbenches (also sorted alphabetically by name).
+**Ordering:** Active workbenches are listed first (sorted alphabetically by name), followed by inactive workbenches (also sorted alphabetically by name). When filtering to a single status, the sort is alphabetical within that status group.
 
-**Example output:**
+**Example output (all workbenches):**
 
 ```
 ┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
@@ -788,11 +795,13 @@ This command takes no arguments or flags. It always shows all workbenches, group
 └───────────────┴───────────┴───────────────┴──────────┘
 ```
 
-**Empty state:** When no workbenches have been created yet, the command displays:
+**Empty-state messages:** The empty-state message adapts to the active filter:
 
-```
-No workbenches defined. Use 'bench workbench create' to create one.
-```
+| Filter | Message |
+|---|---|
+| No flags (all) | `No workbenches defined. Use 'bench workbench create' to create one.` |
+| `--active` | `No active workbenches.` |
+| `--inactive` | `No inactive workbenches.` |
 
 **Mode support:** Unlike most workbench commands (which require ROOT mode), `bench workbench list` works from any bench-aware directory -- ROOT, WORKBENCH, or WITHIN_ROOT. This makes it convenient to check the full list of workbenches regardless of where you are in the project tree. Running it from an uninitialized directory produces an error directing you to run `bench init` first.
 
@@ -1104,17 +1113,17 @@ completed: '2026-02-09'
 Lists tasks in the current workbench with metadata in a Rich table.
 
 ```bash
-bench task list                # open tasks only (default)
-bench task list --all          # all tasks (open + completed)
+bench task list                # all tasks (default)
+bench task list --open         # open tasks only
 bench task list --completed    # completed tasks only
 ```
 
 | Option | Description |
 |---|---|
-| `--all` | Show all tasks |
+| `--open` | Show only open (non-completed) tasks |
 | `--completed` | Show only completed tasks |
 
-`--all` and `--completed` are mutually exclusive.
+`--open` and `--completed` are mutually exclusive. If both are provided, the command displays an error and exits with code 1. When neither flag is specified, all tasks are shown (open + completed).
 
 **Table columns:**
 
@@ -1130,6 +1139,14 @@ bench task list --completed    # completed tasks only
 | Journal | Green "yes" if `journal.md` exists and is non-empty |
 
 Tasks are sorted by creation date ascending. Tasks with missing or malformed `task.yaml` are silently skipped.
+
+**Empty-state messages:** The empty-state message adapts to the active filter:
+
+| Filter | Message |
+|---|---|
+| No flags (all) | `No tasks in this workbench.` |
+| `--open` | `No open tasks in this workbench.` |
+| `--completed` | `No completed tasks in this workbench.` |
 
 ---
 
@@ -1467,7 +1484,7 @@ src/bench/
     opencode.py            # OpenCodeResult
     source.py              # Source, SourceRepo
     task.py                # TaskConfig, TaskEntry, TaskFilter
-    workbench.py           # WorkbenchEntry, WorkbenchStatus
+    workbench.py           # WorkbenchEntry, WorkbenchFilter, WorkbenchStatus
     discuss.py             # DiscussionEntry
   service/
     __init__.py            # Re-exports public service functions

@@ -3,7 +3,7 @@ from typing import Annotated
 
 import typer
 
-from bench.model import BenchMode, WorkbenchStatus
+from bench.model import BenchMode, WorkbenchFilter, WorkbenchStatus
 from bench.service.mode_detection import detect_mode
 from bench.service.source import list_sources
 from rich.console import Console
@@ -280,11 +280,31 @@ def workbench_activate(
 workbench_app.command("activate")(workbench_activate)
 
 
-def workbench_list() -> None:
+def workbench_list(
+    active: Annotated[
+        bool,
+        typer.Option("--active", help="Show only active workbenches"),
+    ] = False,
+    inactive: Annotated[
+        bool,
+        typer.Option("--inactive", help="Show only inactive workbenches"),
+    ] = False,
+) -> None:
     """List all workbenches in the current bench project."""
     try:
-        workbenches = list_workbenches()
-        display_workbench_list(workbenches)
+        if active and inactive:
+            display_workbench_error("--active and --inactive are mutually exclusive.")
+            raise typer.Exit(code=1)
+
+        if active:
+            workbench_filter = WorkbenchFilter.ACTIVE
+        elif inactive:
+            workbench_filter = WorkbenchFilter.INACTIVE
+        else:
+            workbench_filter = WorkbenchFilter.ALL
+
+        workbenches = list_workbenches(workbench_filter)
+        display_workbench_list(workbenches, workbench_filter)
     except (ValueError, RuntimeError) as e:
         display_workbench_error(str(e))
         raise typer.Exit(code=1)

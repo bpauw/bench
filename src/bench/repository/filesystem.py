@@ -91,6 +91,8 @@ task-spec: {task-dir}/spec.md
 
 ## Specification
 
+## Validation
+
 </spec-template>
 
 Tasks:
@@ -169,6 +171,9 @@ Tasks:
 - Read AGENTS.md
 - Read task-spec, task-implementation-plan, task-notes, files-list, task-journal
 - Implement the feature as described by task-implementation-plan
+- This is a non-interactive sesssion, so don't ask the user any questions
+- Only read source files if they are needed to carry out or understand the implementation plan
+  - Don't proactively read other source files
 - Maintain task-journal throughout this phase as a chronological activity log:
   - Read existing journal entries from the previous phase for context
   - Continue appending new entries using the format: `## YYYY-MM-DD HH:MM - [tag]` followed by freeform markdown
@@ -176,7 +181,6 @@ Tasks:
   - Append entries chronologically (newest at the bottom)
   - Write entries for decisions about code structure, problems encountered during coding, codebase observations, and any deviations from the implementation plan
   - Write entries continuously throughout the phase, not just at the end
-- This is a non-interactive sesssion, so don't ask the user any questions
 """
 
 TASK_UPDATE_CHANGE_DOCS_TEMPLATE: str = """\
