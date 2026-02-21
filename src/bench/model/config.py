@@ -9,6 +9,7 @@ class Models(BaseModel):
 
     task: str = "anthropic/claude-opus-4-6"
     discuss: str = "anthropic/claude-opus-4-6"
+    map: str = "anthropic/claude-opus-4-6"
 
 
 class ImplementationStep(BaseModel):

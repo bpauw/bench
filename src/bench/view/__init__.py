@@ -4,6 +4,7 @@ from bench.view.discuss import (
     display_discuss_start,
 )
 from bench.view.init import display_init_error, display_init_success
+from bench.view.map import display_map_error, display_map_status
 from bench.view.populate import (
     display_populate_agents_error,
     display_populate_agents_start,
@@ -56,6 +57,8 @@ __all__ = [
     "display_discuss_start",
     "display_init_error",
     "display_init_success",
+    "display_map_error",
+    "display_map_status",
     "display_populate_agents_error",
     "display_populate_agents_start",
     "display_populate_agents_warning",

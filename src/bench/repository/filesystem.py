@@ -29,6 +29,8 @@ DISCUSSIONS_DIR_NAME: str = "discussions"
 TASKS_DIR_NAME: str = "tasks"
 BENCH_SUBDIR_NAME: str = "bench"
 REPO_DIR_NAME: str = "repo"
+MAPS_DIR_NAME: str = "maps"
+METAMAP_FILENAME: str = "metamap.md"
 
 # Task scaffold file names
 TASK_YAML_FILENAME: str = "task.yaml"
@@ -43,6 +45,8 @@ POPULATE_AGENTS_PROMPT_FILENAME: str = "populate-agents.md"
 DIRECTORIES_PLACEHOLDER: str = "{{DIRECTORIES}}"
 DISCUSSIONS_PLACEHOLDER: str = "{{DISCUSSIONS}}"
 EXISTING_DISCUSSIONS_PLACEHOLDER: str = "{{EXISTING_DISCUSSIONS}}"
+MAPS_LOCATION_PLACEHOLDER: str = "{{MAPS_LOCATION}}"
+MAPS_PLACEHOLDER: str = "{{MAPS}}"
 
 SPEC_TEMPLATE: str = """\
 # Spec
@@ -70,10 +74,13 @@ TASK_WRITE_IMPL_DOCS_FILENAME: str = "task-write-impl-docs.md"
 TASK_DO_IMPL_FILENAME: str = "task-do-impl.md"
 TASK_UPDATE_CHANGE_DOCS_FILENAME: str = "task-update-change-docs.md"
 TASK_FOLLOWUP_FILENAME: str = "task-followup.md"
+MAP_INIT_PROMPT_FILENAME: str = "map-init.md"
+MAP_UPDATE_PROMPT_FILENAME: str = "map-update.md"
 
 # Prompt seed templates
 TASK_CREATE_SPEC_TEMPLATE: str = """\
 agents.md: ./AGENTS.md
+{{MAPS}}
 task-dir: ./bench/tasks/{{TASK}}
 task-spec: {task-dir}/spec.md
 
@@ -108,6 +115,7 @@ Tasks:
 
 TASK_REFINE_SPEC_TEMPLATE: str = """\
 agents.md: ./AGENTS.md
+{{MAPS}}
 task-dir: ./bench/tasks/{{TASK}}
 task-spec: {task-dir}/spec.md
 
@@ -128,6 +136,7 @@ Tasks:
 
 TASK_WRITE_IMPL_DOCS_TEMPLATE: str = """\
 agents.md: ./AGENTS.md
+{{MAPS}}
 task-dir: ./bench/tasks/{{TASK}}
 task-spec: {task-dir}/spec.md
 task-implementation-plan: {task-dir}/impl.md
@@ -158,6 +167,7 @@ Tasks:
 
 TASK_DO_IMPL_TEMPLATE: str = """\
 agents.md: ./AGENTS.md
+{{MAPS}}
 task-dir: ./bench/tasks/{{TASK}}
 task-spec: {task-dir}/spec.md
 task-implementation-plan: {task-dir}/impl.md
@@ -187,6 +197,7 @@ Tasks:
 
 TASK_UPDATE_CHANGE_DOCS_TEMPLATE: str = """\
 agents.md: ./AGENTS.md
+{{MAPS}}
 task-dir: ./bench/tasks/{{TASK}}
 task-spec: {task-dir}/spec.md
 task-implementation-plan: {task-dir}/impl.md
@@ -254,6 +265,7 @@ Changelog:
 
 TASK_FOLLOWUP_TEMPLATE: str = """\
 agents.md: ./AGENTS.md
+{{MAPS}}
 task-dir: ./bench/tasks/{{TASK}}
 task-spec: {task-dir}/spec.md
 task-implementation-plan: {task-dir}/impl.md
@@ -356,6 +368,69 @@ Document recurring design patterns, architectural decisions, and idioms used in 
 Note coding style conventions, naming conventions, file organization rules, and any project-specific standards.
 """
 
+MAP_INIT_PROMPT_TEMPLATE: str = """\
+maps-location: {{MAPS_LOCATION}}
+
+{{REPOSITORIES}}
+
+You are creating structured markdown maps of the repositories listed above. These maps will be used by AI agents as a primary reference to understand the codebase without needing to read source files directly.
+
+Tasks:
+
+- For each repository listed in <repositories>:
+  1. Explore the repository thoroughly -- read key files, understand the architecture, identify major components, data flows, and conventions
+  2. Design a schema for mapping this repository into markdown files where no single file exceeds 2500 lines
+     - Write this schema to `{maps-location}/<repo-name>/schema.md`
+     - The schema should define what each map file covers and how they relate to each other
+  3. Following the schema, create comprehensive markdown map files in `{maps-location}/<repo-name>/` that document:
+     - Architecture and module structure
+     - Key abstractions, classes, functions, and their relationships
+     - Data flows and control flows
+     - Configuration and conventions
+     - Integration points between components
+  4. If any map file approaches 2500 lines, split it into multiple files and update `schema.md` accordingly
+
+- After all repositories are mapped:
+  1. Read all `schema.md` files
+  2. Write `{maps-location}/metamap.md` that serves as the top-level entry point:
+     - Summarize what each repository contains and what its map covers
+     - Provide clear navigation instructions: which `schema.md` to read for which type of information
+     - Include these instructions for AI agents consuming the maps:
+       - Start with `metamap.md` to orient yourself
+       - Read the relevant `schema.md` to find which map files contain the information you need
+       - Load map files on-demand to conserve tokens -- do not read all maps upfront
+       - Only read actual source files in the repository when the maps do not contain sufficient detail for your specific task
+
+This is a non-interactive session. Do not ask the user any questions.
+"""
+
+MAP_UPDATE_PROMPT_TEMPLATE: str = """\
+maps-location: {{MAPS_LOCATION}}
+
+{{REPOSITORIES}}
+
+You are updating existing markdown maps of the repositories listed above. Maps were previously generated and may be outdated.
+
+Tasks:
+
+- Read `{maps-location}/metamap.md` to understand the current map structure
+- For each repository listed in <repositories>:
+  1. Read the existing `{maps-location}/<repo-name>/schema.md` and map files
+  2. Explore the repository to identify what has changed or is missing from the current maps
+  3. Update the map files to reflect the current state of the repository:
+     - Add documentation for new modules, classes, functions, or features
+     - Update documentation for modified components
+     - Remove documentation for deleted components
+     - Update `schema.md` if the map structure needs to change
+  4. Maintain the 2500-line-per-file limit -- split files if needed and update `schema.md`
+
+- After all repositories are updated:
+  1. Re-read all `schema.md` files
+  2. Update `{maps-location}/metamap.md` to reflect any structural changes
+
+This is a non-interactive session. Do not ask the user any questions.
+"""
+
 # Default implementation flow template (written into base-config.yaml at init)
 DEFAULT_IMPLEMENTATION_FLOW_TEMPLATE: list[dict[str, str | list[str]]] = [
     {
@@ -388,6 +463,8 @@ PROMPT_SEED_FILES: dict[str, str] = {
     TASK_FOLLOWUP_FILENAME: TASK_FOLLOWUP_TEMPLATE,
     DISCUSS_PROMPT_FILENAME: DISCUSS_PROMPT_TEMPLATE,
     POPULATE_AGENTS_PROMPT_FILENAME: POPULATE_AGENTS_PROMPT_TEMPLATE,
+    MAP_INIT_PROMPT_FILENAME: MAP_INIT_PROMPT_TEMPLATE,
+    MAP_UPDATE_PROMPT_FILENAME: MAP_UPDATE_PROMPT_TEMPLATE,
 }
 
 
@@ -585,6 +662,7 @@ def create_bench_scaffold(root_path: Path) -> list[str]:
             "models": {
                 "task": "anthropic/claude-opus-4-6",
                 "discuss": "anthropic/claude-opus-4-6",
+                "map": "anthropic/claude-opus-4-6",
             },
             "implementation-flow-template": DEFAULT_IMPLEMENTATION_FLOW_TEMPLATE,
         },
@@ -595,6 +673,7 @@ def create_bench_scaffold(root_path: Path) -> list[str]:
     for subdir_name in [
         DISCUSSIONS_DIR_NAME,
         FILES_DIR_NAME,
+        MAPS_DIR_NAME,
         PROMPTS_DIR_NAME,
         SCRIPTS_DIR_NAME,
         WORKBENCH_DIR_NAME,
@@ -688,10 +767,11 @@ def create_workbench_scaffold(
     (tasks_dir / GITKEEP_FILENAME).touch()
     created.append(f"{rel_prefix}/{BENCH_SUBDIR_NAME}/{TASKS_DIR_NAME}/")
 
-    # 7-10. Copy discussions/, files/, prompts/, scripts/ from bench dir
+    # 7-11. Copy discussions/, files/, maps/, prompts/, scripts/ from bench dir
     for subdir_name in [
         DISCUSSIONS_DIR_NAME,
         FILES_DIR_NAME,
+        MAPS_DIR_NAME,
         PROMPTS_DIR_NAME,
         SCRIPTS_DIR_NAME,
     ]:

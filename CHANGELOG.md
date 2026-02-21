@@ -1,5 +1,21 @@
 # Changelog
 
+## Version 0.15.0
+
+### New
+
+- Added `bench map` command group for AI-driven codebase mapping. Maps produce structured markdown documentation of repositories that AI agents can use as a primary reference, reducing the need for expensive source file exploration.
+- Added `bench map init` command that generates comprehensive markdown maps for all (or selected) repositories. The AI agent explores each repository, creates a per-repo schema and map files, and produces a top-level `metamap.md` entry point.
+- Added `bench map update` command that differentially updates existing maps based on the current state of repositories. Includes a confirmation prompt (skippable with `--yes`/`-y`).
+- Added `maps/` directory to the project scaffold created by `bench init` and copied into new workbenches during `bench workbench create`
+- Added `map-init.md` and `map-update.md` prompt templates to the set of seed prompt files created during `bench init`
+- Added `models.map` configuration field for specifying the AI model used during map operations
+
+### Updated
+
+- Task prompt templates now include a `{{MAPS}}` placeholder that automatically injects a reference to `metamap.md` when maps have been initialized, giving the AI agent access to codebase maps during task operations
+- `bench populate prompts` now manages 10 built-in prompt template files (up from 8), including the two new map prompt templates
+
 ## Version 0.14.0
 
 ### New

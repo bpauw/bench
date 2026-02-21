@@ -1,6 +1,7 @@
 from bench.service.discuss import list_discussions, start_discussion
 from bench.service.git import create_git_branch, get_git_status, push_git_branch
 from bench.service.init import initialize_project
+from bench.service.map import init_maps, update_maps
 from bench.service.populate import (
     populate_agents_md,
     populate_prompts,
@@ -42,6 +43,7 @@ __all__ = [
     "delete_workbench",
     "detect_mode",
     "get_git_status",
+    "init_maps",
     "initialize_project",
     "list_discussions",
     "list_sources",
@@ -62,6 +64,7 @@ __all__ = [
     "run_task_interview",
     "run_task_phase",
     "start_discussion",
+    "update_maps",
     "update_source",
     "update_workbench",
     "validate_task_phase",

@@ -10,6 +10,9 @@ from bench.repository.filesystem import (
     DISCUSSIONS_PLACEHOLDER,
     IMPL_MD_FILENAME,
     JOURNAL_MD_FILENAME,
+    MAPS_DIR_NAME,
+    MAPS_PLACEHOLDER,
+    METAMAP_FILENAME,
     PROMPTS_DIR_NAME,
     REPOSITORIES_PLACEHOLDER,
     SPEC_MD_FILENAME,
@@ -42,6 +45,7 @@ def _substitute_prompt_placeholders(
     workbench_config: WorkbenchConfig,
     discussion_block: str = "",
     task_repos: list[str] | None = None,
+    cwd: Path | None = None,
 ) -> str:
     """Replace all template placeholders in a prompt string.
 
@@ -53,6 +57,7 @@ def _substitute_prompt_placeholders(
         task_repos: Optional list of repo dir names to filter to. When non-empty,
             only repos whose .dir is in this list are included. When empty/None,
             all repos are included.
+        cwd: Current working directory for resolving {{MAPS}} placeholder.
 
     Returns:
         The prompt text with all placeholders resolved.
@@ -65,6 +70,17 @@ def _substitute_prompt_placeholders(
     repos_block = render_repositories_block(repo_dirs)
     text = text.replace(REPOSITORIES_PLACEHOLDER, repos_block)
     text = text.replace(DISCUSSIONS_PLACEHOLDER, discussion_block)
+
+    # Handle {{MAPS}} placeholder
+    maps_value = ""
+    if cwd is not None:
+        metamap_path = cwd / BENCH_SUBDIR_NAME / MAPS_DIR_NAME / METAMAP_FILENAME
+        if metamap_path.exists():
+            maps_value = (
+                f"maps: ./{BENCH_SUBDIR_NAME}/{MAPS_DIR_NAME}/{METAMAP_FILENAME}"
+            )
+    text = text.replace(MAPS_PLACEHOLDER, maps_value)
+
     return text
 
 
@@ -285,6 +301,7 @@ def run_task_interview(
         context.workbench_config,
         discussion_block,
         task_repos=task_repos or None,
+        cwd=context.cwd,
     )
 
     # Get the model
@@ -404,6 +421,7 @@ def refine_task(
         context.workbench_config,
         discussion_block,
         task_repos=task_repos or None,
+        cwd=context.cwd,
     )
 
     # Get the model
@@ -593,6 +611,7 @@ def run_task_phase(task_folder_name: str, phase: ImplementationStep) -> int:
         task_folder_name,
         context.workbench_config,
         task_repos=task_repos or None,
+        cwd=context.cwd,
     )
 
     # Get the model
@@ -743,6 +762,7 @@ def run_task_followup(
         context.workbench_config,
         discussion_block,
         task_repos=task_repos or None,
+        cwd=context.cwd,
     )
 
     # Phase 7: Launch interactive opencode session
