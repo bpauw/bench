@@ -147,7 +147,8 @@ Tasks:
 - Create a list of files that will be effected and place them in files-list
   - Organize the markdown file so that it is easy to understand how to find the files in question
 - Maintain task-journal throughout this phase as a chronological activity log:
-  - Each entry uses the format: `## YYYY-MM-DD HH:MM - [tag]` followed by freeform markdown content
+  - Continue appending new entries using the format: `## YYYY-MM-DD HH:MM - [tag]` followed by freeform markdown
+    - Use the following command to get the date and time for the journal entry: `date +'%Y-%m-%d %H:%M'`
   - Type tags (use exactly these): `decision`, `issue`, `observation`, `deviation`, `rationale`
   - Append entries chronologically (newest at the bottom)
   - Write an entry whenever you make a significant decision, encounter a problem, notice something noteworthy about the codebase, or deviate from the spec
@@ -177,6 +178,7 @@ Tasks:
 - Maintain task-journal throughout this phase as a chronological activity log:
   - Read existing journal entries from the previous phase for context
   - Continue appending new entries using the format: `## YYYY-MM-DD HH:MM - [tag]` followed by freeform markdown
+    - Use the following command to get the date and time for the journal entry: `date +'%Y-%m-%d %H:%M'`
   - Type tags (use exactly these): `decision`, `issue`, `observation`, `deviation`, `rationale`
   - Append entries chronologically (newest at the bottom)
   - Write entries for decisions about code structure, problems encountered during coding, codebase observations, and any deviations from the implementation plan
@@ -220,7 +222,8 @@ Notes:
 
 - Only read the top 200 lines of CHANGELOG.md
 - Continue maintaining task-journal throughout this phase:
-  - Append new entries using the format: `## YYYY-MM-DD HH:MM - [tag]` followed by freeform markdown
+  - Continue appending new entries using the format: `## YYYY-MM-DD HH:MM - [tag]` followed by freeform markdown
+    - Use the following command to get the date and time for the journal entry: `date +'%Y-%m-%d %H:%M'`
   - Type tags (use exactly these): `decision`, `issue`, `observation`, `deviation`, `rationale`
   - Write entries for notable decisions or observations made during the documentation update phase
 - This is a non-interactive sesssion, so don't ask the user any questions
@@ -272,6 +275,7 @@ Tasks:
 - Maintain task-journal throughout this session as a chronological activity log:
   - Read existing journal entries for context
   - Continue appending new entries using the format: `## YYYY-MM-DD HH:MM - [tag]` followed by freeform markdown
+    - Use the following command to get the date and time for the journal entry: `date +'%Y-%m-%d %H:%M'`
   - Type tags (use exactly these): `decision`, `issue`, `observation`, `deviation`, `rationale`
   - Append entries chronologically (newest at the bottom)
   - Write entries for all significant actions taken, decisions made, problems encountered, and deviations from the original implementation
